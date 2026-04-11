@@ -28,17 +28,20 @@ flutter pub get
 4. Run the app:
 
 ```bash
-flutter run --dart-define=MAP_STYLE_URL=https://demotiles.maplibre.org/style.json
+flutter run \
+  --dart-define=MAPBOX_ACCESS_TOKEN=your-public-mapbox-token \
+  --dart-define=MAPBOX_STYLE_URI=mapbox://styles/mapbox/streets-v12
 ```
 
 ## Optional backend wiring
 
-Add the following defines when you are ready to wire Supabase and GraphHopper:
+Add the following defines when you are ready to wire Supabase and Mapbox-backed routing:
 
 ```bash
 flutter run \
   --dart-define=SUPABASE_URL=https://your-project.supabase.co \
   --dart-define=SUPABASE_ANON_KEY=your-anon-key \
-  --dart-define=MAP_STYLE_URL=https://tiles.example.com/style.json \
-  --dart-define=GRAPHHOPPER_BASE_URL=https://graphhopper.com/api/1
+  --dart-define=MAPBOX_ACCESS_TOKEN=your-public-mapbox-token \
+  --dart-define=MAPBOX_STYLE_URI=mapbox://styles/mapbox/streets-v12 \
+  --dart-define=MAPBOX_BASE_URL=https://api.mapbox.com
 ```

@@ -6,11 +6,11 @@ import '../local/carnometer_local_database.dart';
 class SupabaseSyncService {
   const SupabaseSyncService({
     required this.client,
-    required this.graphHopperBaseUrl,
+    required this.mapboxBaseUrl,
   });
 
   final SupabaseClient? client;
-  final String graphHopperBaseUrl;
+  final String mapboxBaseUrl;
 
   bool get isEnabled => client != null;
 
@@ -128,6 +128,62 @@ class SupabaseSyncService {
                 .toList(),
           );
     }
+  }
+
+  Future<Map<String, dynamic>?> requestDirections({
+    required List<GeoPoint> waypoints,
+    String profile = 'driving',
+  }) async {
+    final supabase = client;
+    if (supabase == null) {
+      return null;
+    }
+
+    final response = await supabase.functions.invoke(
+      'mapbox-routing',
+      body: {
+        'mode': 'directions',
+        'profile': profile,
+        'points': waypoints
+            .map(
+              (point) => {
+                'latitude': point.latitude,
+                'longitude': point.longitude,
+              },
+            )
+            .toList(),
+      },
+    );
+
+    return response.data as Map<String, dynamic>?;
+  }
+
+  Future<Map<String, dynamic>?> requestMapMatching({
+    required List<GeoPoint> trace,
+    String profile = 'driving',
+  }) async {
+    final supabase = client;
+    if (supabase == null) {
+      return null;
+    }
+
+    final response = await supabase.functions.invoke(
+      'mapbox-routing',
+      body: {
+        'mode': 'map-matching',
+        'profile': profile,
+        'points': trace
+            .map(
+              (point) => {
+                'latitude': point.latitude,
+                'longitude': point.longitude,
+              },
+            )
+            .toList(),
+      },
+    );
+
+    return response.data as Map<String, dynamic>?;
   }
 
   Map<String, dynamic> _lineString(List<GeoPoint> points) => {

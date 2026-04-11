@@ -38,10 +38,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
         future: _sessionsFuture,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const ListView(
+            return ListView(
               children: [
-                SizedBox(height: 120),
-                Center(child: CircularProgressIndicator()),
+                const SizedBox(height: 120),
+                const Center(child: CircularProgressIndicator()),
               ],
             );
           }
@@ -50,8 +50,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           if (sessions.isEmpty) {
             return ListView(
               padding: const EdgeInsets.all(24),
-              children: const [
-                Card(
+              children: [
+                const Card(
                   child: Padding(
                     padding: EdgeInsets.all(20),
                     child: Text(
@@ -81,7 +81,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               );
             },
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, index) => const SizedBox(height: 8),
             itemCount: sessions.length,
           );
         },

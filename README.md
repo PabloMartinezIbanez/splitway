@@ -14,7 +14,7 @@ Carnometer is an Android-first proof of concept for timing car routes with custo
   - Demo lap playback so the core timing flow can be exercised without driving.
 - `supabase`
   - Initial Postgres/PostGIS schema.
-  - Edge function scaffold for optional route snapping through GraphHopper.
+  - Edge function scaffold for Mapbox Directions and Map Matching.
 
 ## Repository layout
 
@@ -33,33 +33,39 @@ The following commands were run successfully during this session:
 cd packages/carnometer_core
 ../../.tooling/dart-sdk/dart-sdk/bin/dart test
 ../../.tooling/dart-sdk/dart-sdk/bin/dart analyze
+
+cd ../../apps/mobile
+../../flutter/bin/flutter.bat test test/app_config_test.dart
+../../flutter/bin/flutter.bat analyze
 ```
 
-Flutter was not available in the current environment, so the mobile shell was scaffolded manually and still needs the normal Flutter native project generation step before running.
+The Android shell has already been generated inside `apps/mobile/android`.
 
 ## Next steps
 
 1. Install Flutter locally.
-2. Generate the Android shell inside `apps/mobile` if needed:
+2. Install dependencies:
 
 ```bash
 cd apps/mobile
-flutter create . --platforms=android
 flutter pub get
 ```
 
 3. Run the app in local-only mode:
 
 ```bash
-flutter run --dart-define=MAP_STYLE_URL=https://demotiles.maplibre.org/style.json
+flutter run \
+  --dart-define=MAPBOX_ACCESS_TOKEN=your-public-mapbox-token \
+  --dart-define=MAPBOX_STYLE_URI=mapbox://styles/mapbox/streets-v12
 ```
 
-4. Wire Supabase and GraphHopper when ready:
+4. Wire Supabase and Mapbox-backed routing when ready:
 
 ```bash
 flutter run \
   --dart-define=SUPABASE_URL=https://your-project.supabase.co \
   --dart-define=SUPABASE_ANON_KEY=your-anon-key \
-  --dart-define=MAP_STYLE_URL=https://your-style-url/style.json \
-  --dart-define=GRAPHHOPPER_BASE_URL=https://graphhopper.com/api/1
+  --dart-define=MAPBOX_ACCESS_TOKEN=your-public-mapbox-token \
+  --dart-define=MAPBOX_STYLE_URI=mapbox://styles/mapbox/streets-v12 \
+  --dart-define=MAPBOX_BASE_URL=https://api.mapbox.com
 ```

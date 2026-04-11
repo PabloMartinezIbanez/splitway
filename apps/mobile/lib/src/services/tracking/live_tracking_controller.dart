@@ -41,7 +41,7 @@ class LiveTrackingController extends ChangeNotifier {
     ).listen((position) {
       _engine.addPoint(
         TelemetryPoint(
-          timestamp: position.timestamp ?? DateTime.now(),
+          timestamp: position.timestamp,
           latitude: position.latitude,
           longitude: position.longitude,
           speedMps: position.speed,

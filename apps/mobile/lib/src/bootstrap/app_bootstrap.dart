@@ -1,3 +1,4 @@
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/app_config.dart';
@@ -28,6 +29,10 @@ class AppBootstrap {
     final database = CarnometerLocalDatabase();
     await database.open();
 
+    if (config.hasMapboxToken) {
+      MapboxOptions.setAccessToken(config.mapboxAccessToken);
+    }
+
     SupabaseClient? client;
     var installId = 'local-demo-installation';
 
@@ -55,7 +60,7 @@ class AppBootstrap {
 
     final syncService = SupabaseSyncService(
       client: client,
-      graphHopperBaseUrl: config.graphHopperBaseUrl,
+      mapboxBaseUrl: config.mapboxBaseUrl,
     );
 
     if (client != null) {

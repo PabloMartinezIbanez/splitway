@@ -90,7 +90,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<RouteTemplate>(
-                      value: _selectedRoute,
+                      initialValue: _selectedRoute,
                       items: routes
                           .map(
                             (route) => DropdownMenuItem<RouteTemplate>(

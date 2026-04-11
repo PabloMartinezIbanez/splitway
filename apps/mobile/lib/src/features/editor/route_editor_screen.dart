@@ -1,6 +1,6 @@
 import 'package:carnometer_core/carnometer_core.dart';
 import 'package:flutter/material.dart';
-import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../bootstrap/app_bootstrap.dart';
 
@@ -42,13 +42,27 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
             aspectRatio: 1.1,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: MapLibreMap(
-                styleString: widget.bundle.config.mapStyleUrl,
-                initialCameraPosition: const CameraPosition(
-                  target: LatLng(40.4168, -3.7038),
-                  zoom: 10.4,
-                ),
-              ),
+              child: widget.bundle.config.hasMapboxToken
+                  ? MapWidget(
+                      key: const ValueKey('route-editor-mapbox-map'),
+                      styleUri: widget.bundle.config.mapboxStyleUri,
+                      cameraOptions: CameraOptions(
+                        center: Point(
+                          coordinates: Position(-3.7038, 40.4168),
+                        ),
+                        zoom: 10.4,
+                      ),
+                    )
+                  : Container(
+                      color: const Color(0xFFE7DED1),
+                      padding: const EdgeInsets.all(20),
+                      child: const Center(
+                        child: Text(
+                          'Añade MAPBOX_ACCESS_TOKEN para ver el mapa real de Mapbox.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 16),
@@ -64,7 +78,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'La base ya deja preparado el lienzo del mapa, el guardado local y el punto de integración para snap-to-road. '
+                    'La base ya deja preparado el mapa de Mapbox, el guardado local y el punto de integración para Directions y Map Matching bajo demanda. '
                     'En esta primera iteración del repo se incluye una ruta demo para poder probar sesiones y sincronización sin depender todavía del editor gestual completo.',
                   ),
                   const SizedBox(height: 12),
@@ -72,9 +86,9 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: const [
-                      Chip(label: Text('MapLibre + OSM')),
-                      Chip(label: Text('Rutas locales')),
-                      Chip(label: Text('Snap opcional')),
+                      Chip(label: Text('Mapbox Maps')),
+                      Chip(label: Text('Directions API')),
+                      Chip(label: Text('Map Matching API')),
                       Chip(label: Text('Sectores por puertas')),
                     ],
                   ),

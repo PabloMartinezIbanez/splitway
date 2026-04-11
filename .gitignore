@@ -2,6 +2,7 @@
 .puro/
 .tooling/dart-sdk/
 .tooling/dartsdk.zip
+flutter/
 build/
 .idea/
 .vscode/
