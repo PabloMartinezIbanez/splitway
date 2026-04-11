@@ -56,6 +56,7 @@ class SupabaseSyncService {
       'id': route.id,
       'install_id': installId,
       'name': route.name,
+      'difficulty': route.difficulty.storageValue,
       'is_closed': route.isClosed,
       'raw_geometry': _lineString(route.rawGeometry),
       'snapped_geometry':

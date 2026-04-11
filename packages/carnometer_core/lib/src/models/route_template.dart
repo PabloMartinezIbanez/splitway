@@ -2,10 +2,30 @@ import 'gate_definition.dart';
 import 'geo_point.dart';
 import 'sector_definition.dart';
 
+enum RouteDifficulty {
+  easy('easy', 'Facil'),
+  medium('medium', 'Medio'),
+  hard('hard', 'Dificil'),
+  expert('expert', 'Experto');
+
+  const RouteDifficulty(this.storageValue, this.label);
+
+  final String storageValue;
+  final String label;
+
+  static RouteDifficulty fromStorageValue(String? value) {
+    return RouteDifficulty.values.firstWhere(
+      (difficulty) => difficulty.storageValue == value,
+      orElse: () => RouteDifficulty.medium,
+    );
+  }
+}
+
 class RouteTemplate {
   RouteTemplate({
     required this.id,
     required this.name,
+    required this.difficulty,
     required this.isClosed,
     required this.rawGeometry,
     required this.startFinishGate,
@@ -19,6 +39,7 @@ class RouteTemplate {
 
   final String id;
   final String name;
+  final RouteDifficulty difficulty;
   final bool isClosed;
   final List<GeoPoint> rawGeometry;
   final List<GeoPoint>? snappedGeometry;
@@ -32,6 +53,7 @@ class RouteTemplate {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
+        'difficulty': difficulty.storageValue,
         'isClosed': isClosed,
         'rawGeometry': rawGeometry.map((point) => point.toJson()).toList(),
         'snappedGeometry': snappedGeometry?.map((point) => point.toJson()).toList(),
@@ -44,6 +66,7 @@ class RouteTemplate {
   factory RouteTemplate.fromJson(Map<String, dynamic> json) => RouteTemplate(
         id: json['id'] as String,
         name: json['name'] as String,
+        difficulty: RouteDifficulty.fromStorageValue(json['difficulty'] as String?),
         isClosed: json['isClosed'] as bool,
         rawGeometry: (json['rawGeometry'] as List<dynamic>)
             .map((item) => GeoPoint.fromJson(item as Map<String, dynamic>))

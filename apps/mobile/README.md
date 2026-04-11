@@ -66,14 +66,28 @@ flutter run \
   --dart-define=MAPBOX_BASE_URL=https://api.mapbox.com
 ```
 
-For local Supabase, `env/local.json` should look like:
+For local Supabase on the Android emulator, `env/local.json` should look like:
 
 ```json
 {
-  "SUPABASE_URL": "http://127.0.0.1:54321",
+  "SUPABASE_URL": "http://10.0.2.2:54321",
   "SUPABASE_ANON_KEY": "your-local-publishable-key",
   "MAPBOX_ACCESS_TOKEN": "your-public-mapbox-token",
   "MAPBOX_STYLE_URI": "mapbox://styles/mapbox/streets-v12",
   "MAPBOX_BASE_URL": "https://api.mapbox.com"
 }
 ```
+
+For a physical Android device on the same Wi-Fi network as your PC, use the LAN IP of the computer that is running Supabase, for example:
+
+```json
+{
+  "SUPABASE_URL": "http://192.168.0.101:54321",
+  "SUPABASE_ANON_KEY": "your-local-publishable-key",
+  "MAPBOX_ACCESS_TOKEN": "your-public-mapbox-token",
+  "MAPBOX_STYLE_URI": "mapbox://styles/mapbox/streets-v12",
+  "MAPBOX_BASE_URL": "https://api.mapbox.com"
+}
+```
+
+Keep the phone and the PC on the same network and allow inbound traffic to port `54321` in the Windows firewall.

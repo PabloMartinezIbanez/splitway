@@ -12,6 +12,7 @@ class DemoSeed {
     final route = RouteTemplate(
       id: 'a0dfc7b4-99aa-4f42-b321-91c8ce8cbf01',
       name: 'Madrid Demo Loop',
+      difficulty: RouteDifficulty.medium,
       isClosed: true,
       rawGeometry: const [
         GeoPoint(latitude: 40.4108, longitude: -3.7285),

@@ -66,6 +66,7 @@ RouteTemplate _closedRoute() {
   return RouteTemplate(
     id: 'closed',
     name: 'Closed route',
+    difficulty: RouteDifficulty.medium,
     isClosed: true,
     rawGeometry: const [
       GeoPoint(latitude: -0.0002, longitude: 0),
@@ -97,6 +98,7 @@ RouteTemplate _openRoute() {
   return RouteTemplate(
     id: 'open',
     name: 'Open route',
+    difficulty: RouteDifficulty.medium,
     isClosed: false,
     rawGeometry: const [
       GeoPoint(latitude: -0.0002, longitude: 0),
@@ -127,6 +129,7 @@ RouteTemplate _routeWithoutIntermediateSectors() {
   return RouteTemplate(
     id: 'jitter',
     name: 'Jitter route',
+    difficulty: RouteDifficulty.medium,
     isClosed: true,
     rawGeometry: const [
       GeoPoint(latitude: -0.0002, longitude: 0),
