@@ -1,7 +1,24 @@
+fun requireGradleProperty(name: String): String {
+    return providers.gradleProperty(name).orNull
+        ?: error(
+            "$name is required to download Mapbox Android artifacts. " +
+                "Add it to %USERPROFILE%/.gradle/gradle.properties",
+        )
+}
+
 allprojects {
     repositories {
         google()
         mavenCentral()
+        maven("https://api.mapbox.com/downloads/v2/releases/maven") {
+            authentication {
+                create<BasicAuthentication>("basic")
+            }
+            credentials {
+                username = "mapbox"
+                password = requireGradleProperty("MAPBOX_DOWNLOADS_TOKEN")
+            }
+        }
     }
 }
 

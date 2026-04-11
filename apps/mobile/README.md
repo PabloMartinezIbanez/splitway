@@ -25,6 +25,18 @@ flutter create . --platforms=android
 flutter pub get
 ```
 
+Before the first Android build, add your Mapbox downloads token to:
+
+```text
+%USERPROFILE%\.gradle\gradle.properties
+```
+
+with:
+
+```properties
+MAPBOX_DOWNLOADS_TOKEN=your-secret-mapbox-token-with-Downloads-Read
+```
+
 4. Run the app:
 
 ```bash
@@ -32,6 +44,14 @@ flutter run \
   --dart-define=MAPBOX_ACCESS_TOKEN=your-public-mapbox-token \
   --dart-define=MAPBOX_STYLE_URI=mapbox://styles/mapbox/streets-v12
 ```
+
+You can also keep local defines in `env/local.json` and run:
+
+```bash
+flutter run --dart-define-from-file=env/local.json
+```
+
+Use `env/local.example.json` as the template.
 
 ## Optional backend wiring
 
@@ -44,4 +64,16 @@ flutter run \
   --dart-define=MAPBOX_ACCESS_TOKEN=your-public-mapbox-token \
   --dart-define=MAPBOX_STYLE_URI=mapbox://styles/mapbox/streets-v12 \
   --dart-define=MAPBOX_BASE_URL=https://api.mapbox.com
+```
+
+For local Supabase, `env/local.json` should look like:
+
+```json
+{
+  "SUPABASE_URL": "http://127.0.0.1:54321",
+  "SUPABASE_ANON_KEY": "your-local-publishable-key",
+  "MAPBOX_ACCESS_TOKEN": "your-public-mapbox-token",
+  "MAPBOX_STYLE_URI": "mapbox://styles/mapbox/streets-v12",
+  "MAPBOX_BASE_URL": "https://api.mapbox.com"
+}
 ```
