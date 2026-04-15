@@ -1,6 +1,7 @@
 export 'src/models/gate_definition.dart';
 export 'src/models/geo_point.dart';
 export 'src/models/lap_summary.dart';
+export 'src/models/manual_split_summary.dart';
 export 'src/models/route_template.dart';
 export 'src/models/sector_definition.dart';
 export 'src/models/sector_summary.dart';

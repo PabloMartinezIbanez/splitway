@@ -2,11 +2,14 @@ import 'package:splitway_core/splitway_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../bootstrap/app_bootstrap.dart';
 import '../../shared/dialogs.dart';
+import '../../shared/widgets/map_bottom_sheet_scaffold.dart';
 import '../../shared/widgets/difficulty_badge.dart';
+import '../../shared/widgets/inline_info_chip.dart';
+import 'route_metrics.dart';
+import 'widgets/route_map_preview.dart';
 
 class RouteDetailScreen extends StatefulWidget {
   const RouteDetailScreen({
@@ -35,7 +38,9 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
   Future<void> _loadData() async {
     final route = await widget.bundle.repository.loadRouteById(widget.routeId);
-    final sessions = await widget.bundle.repository.loadSessionsByRouteId(widget.routeId);
+    final sessions = await widget.bundle.repository.loadSessionsByRouteId(
+      widget.routeId,
+    );
     if (!mounted) return;
     setState(() {
       _route = route;
@@ -48,7 +53,8 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Eliminar ruta',
-      message: '¿Seguro que quieres eliminar esta ruta? Esta acción no se puede deshacer.',
+      message:
+          '¿Seguro que quieres eliminar esta ruta? Esta acción no se puede deshacer.',
     );
 
     if (!confirmed || !mounted) return;
@@ -56,9 +62,9 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     await widget.bundle.repository.deleteRoute(widget.routeId);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ruta eliminada')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Ruta eliminada')));
     context.go('/routes');
   }
 
@@ -108,8 +114,10 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     }
 
     final dateFormat = DateFormat('d MMM yyyy', 'es_ES');
-    final geometry = route.effectiveGeometry;
-
+    final metrics = RouteMetrics.fromGeometry(
+      geometry: route.effectiveGeometry,
+      sectorCount: route.sectors.length,
+    );
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -131,191 +139,199 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Map
-          SizedBox(
-            height: 280,
-            width: double.infinity,
-            child: widget.bundle.config.hasMapboxToken && geometry.isNotEmpty
-                ? MapWidget(
-                    key: ValueKey('route-detail-map-${widget.routeId}'),
-                    styleUri: widget.bundle.config.mapboxStyleUri,
-                    cameraOptions: CameraOptions(
-                      center: Point(
-                        coordinates: Position(
-                          geometry.first.longitude,
-                          geometry.first.latitude,
-                        ),
-                      ),
-                      zoom: 13,
-                    ),
-                  )
-                : Container(
-                    color: const Color(0xFFE7DED1),
-                    child: const Center(
-                      child: Icon(Icons.map, size: 48, color: Colors.grey),
-                    ),
-                  ),
-          ),
-
-          // Content
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
+      body: MapBottomSheetScaffold(
+        background: RouteMapPreview(
+          route: route,
+          config: widget.bundle.config,
+          mapKey: ValueKey('route-detail-map-${widget.routeId}'),
+        ),
+        compactChild: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(route.name, style: theme.textTheme.titleLarge),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                // Metadata
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        context.push('/routes/${widget.routeId}/stopwatch'),
+                    icon: const Icon(Icons.timer),
+                    label: const Text('Iniciar Cronómetro'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await context.push('/routes/${widget.routeId}/edit');
+                    _loadData();
+                  },
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Editar'),
+                ),
+              ],
+            ),
+          ],
+        ),
+        expandedChildBuilder: (scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _MetricCard(
+                  label: 'Distancia',
+                  value: '${metrics.distanceKm.toStringAsFixed(2)} km',
+                ),
+                _MetricCard(label: 'Puntos', value: '${metrics.pointCount}'),
+                _MetricCard(label: 'Sectores', value: '${metrics.sectorCount}'),
+                if (metrics.elevationDeltaM != null)
+                  _MetricCard(
+                    label: 'Desnivel',
+                    value: '${metrics.elevationDeltaM!.toStringAsFixed(0)} m',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                DifficultyBadge(difficulty: route.difficulty),
+                InlineInfoChip(
+                  icon: route.isClosed ? Icons.loop : Icons.trending_flat,
+                  label: route.isClosed ? 'Circuito' : 'Abierta',
+                ),
+                InlineInfoChip(
+                  icon: Icons.calendar_today,
+                  label: dateFormat.format(route.createdAt),
+                ),
+              ],
+            ),
+            if (route.notes != null && route.notes!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DifficultyBadge(difficulty: route.difficulty),
-                    _InfoChip(
-                      icon: Icons.straighten,
-                      label: '${geometry.length} puntos',
+                    Icon(
+                      Icons.notes,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    _InfoChip(
-                      icon: Icons.flag,
-                      label: '${route.sectors.length} sectores',
-                    ),
-                    _InfoChip(
-                      icon: route.isClosed ? Icons.loop : Icons.trending_flat,
-                      label: route.isClosed ? 'Circuito' : 'Abierta',
-                    ),
-                    _InfoChip(
-                      icon: Icons.calendar_today,
-                      label: dateFormat.format(route.createdAt),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        route.notes!,
+                        style: theme.textTheme.bodyMedium,
+                      ),
                     ),
                   ],
                 ),
+              ),
+            ],
+            if (_sessions.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text('Historial de Tiempos', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              ..._sessions.map((session) {
+                final duration = session.endedAt.difference(session.startedAt);
+                final sessionDateFormat = DateFormat(
+                  'd MMM yyyy, HH:mm',
+                  'es_ES',
+                );
 
-                // Notes
-                if (route.notes != null && route.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.notes,
-                          size: 18,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            route.notes!,
-                            style: theme.textTheme.bodyMedium,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _formatDuration(duration),
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                sessionDateFormat.format(session.startedAt),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${session.sectorSummaries.length} sectores',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-
-                // Start Stopwatch button
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => context.push('/routes/${widget.routeId}/stopwatch'),
-                    icon: const Icon(Icons.timer),
-                    label: const Text('Iniciar Cronómetro'),
-                  ),
-                ),
-
-                // Session history
-                if (_sessions.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text(
-                    'Historial de Tiempos',
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  ..._sessions.map((session) {
-                    final duration = session.endedAt.difference(session.startedAt);
-                    final sessionDateFormat = DateFormat(
-                      'd MMM yyyy, HH:mm',
-                      'es_ES',
-                    );
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _formatDuration(duration),
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontFamily: 'monospace',
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    sessionDateFormat.format(session.startedAt),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '${session.sectorSummaries.length} sectores',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ],
-            ),
-          ),
-        ],
+                );
+              }),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({required this.label, required this.value});
 
-  final IconData icon;
   final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 96),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-      ],
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

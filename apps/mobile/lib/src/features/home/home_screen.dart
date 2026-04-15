@@ -20,6 +20,7 @@ class HomeScreen extends StatelessWidget {
         icon: Icons.add_road,
         color: colorScheme.primary,
         route: '/routes/create',
+        stackedNavigation: true,
       ),
       _MenuItem(
         title: 'Mis Rutas',
@@ -69,7 +70,13 @@ class HomeScreen extends StatelessWidget {
               child: Card(
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
-                  onTap: () => context.go(item.route),
+                  onTap: () {
+                    if (item.stackedNavigation) {
+                      context.push(item.route);
+                    } else {
+                      context.go(item.route);
+                    }
+                  },
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
@@ -128,6 +135,7 @@ class _MenuItem {
     required this.icon,
     required this.color,
     required this.route,
+    this.stackedNavigation = false,
   });
 
   final String title;
@@ -135,4 +143,5 @@ class _MenuItem {
   final IconData icon;
   final Color color;
   final String route;
+  final bool stackedNavigation;
 }

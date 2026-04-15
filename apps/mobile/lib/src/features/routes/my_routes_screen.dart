@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../bootstrap/app_bootstrap.dart';
 import '../../shared/widgets/difficulty_badge.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/inline_info_chip.dart';
 
 class MyRoutesScreen extends StatefulWidget {
   const MyRoutesScreen({required this.bundle, super.key});
@@ -131,19 +132,19 @@ class _RouteCard extends StatelessWidget {
                 spacing: 16,
                 runSpacing: 4,
                 children: [
-                  _InfoChip(
+                  InlineInfoChip(
                     icon: Icons.straighten,
                     label: '${route.effectiveGeometry.length} puntos',
                   ),
-                  _InfoChip(
+                  InlineInfoChip(
                     icon: Icons.flag,
                     label: '${route.sectors.length} sectores',
                   ),
-                  _InfoChip(
+                  InlineInfoChip(
                     icon: route.isClosed ? Icons.loop : Icons.trending_flat,
                     label: route.isClosed ? 'Circuito' : 'Abierta',
                   ),
-                  _InfoChip(
+                  InlineInfoChip(
                     icon: Icons.calendar_today,
                     label: dateFormat.format(route.createdAt),
                   ),
@@ -153,30 +154,6 @@ class _RouteCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
     );
   }
 }

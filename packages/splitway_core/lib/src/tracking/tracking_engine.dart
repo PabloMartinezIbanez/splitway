@@ -94,6 +94,7 @@ class TrackingEngine {
       avgSpeedKmh: _averageSpeedKmh(_telemetryPoints),
       lapSummaries: List.unmodifiable(_lapSummaries),
       sectorSummaries: List.unmodifiable(_sectorSummaries),
+      manualSplitSummaries: const [],
       telemetry: List.unmodifiable(_telemetryPoints),
     );
   }

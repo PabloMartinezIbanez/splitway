@@ -1,18 +1,14 @@
-import 'dart:math';
-
-import 'package:splitway_core/splitway_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:splitway_core/splitway_core.dart';
 
 import '../../bootstrap/app_bootstrap.dart';
+import '../../shared/widgets/map_bottom_sheet_scaffold.dart';
+import 'route_editor_controller.dart';
+import 'widgets/route_editor_map_panel.dart';
 
 class RouteEditorScreen extends StatefulWidget {
-  const RouteEditorScreen({
-    required this.bundle,
-    this.editRouteId,
-    super.key,
-  });
+  const RouteEditorScreen({required this.bundle, this.editRouteId, super.key});
 
   final BootstrapBundle bundle;
   final String? editRouteId;
@@ -22,25 +18,26 @@ class RouteEditorScreen extends StatefulWidget {
 }
 
 class _RouteEditorScreenState extends State<RouteEditorScreen> {
-  final _nameController = TextEditingController();
-  final _notesController = TextEditingController();
-
-  final List<GeoPoint> _waypoints = [];
-  final List<GeoPoint> _sectorPoints = [];
-  RouteDifficulty _selectedDifficulty = RouteDifficulty.easy;
-  bool _isClosed = false;
-  bool _sectorMode = false;
-  bool _isSaving = false;
-  bool _loading = false;
-
-  MapboxMap? _mapboxMap;
-  CircleAnnotationManager? _circleManager;
-  PolylineAnnotationManager? _polylineManager;
-
-  RouteTemplate? _existingRoute;
+  late final RouteEditorController _controller;
 
   bool get _isEditing => widget.editRouteId != null;
-  bool get _canSave => _waypoints.length >= 2 && _nameController.text.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = RouteEditorController(
+      repository: widget.bundle.repository,
+      syncService: widget.bundle.syncService,
+      editRouteId: widget.editRouteId,
+    );
+    _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   void _closeEditor() {
     if (context.canPop()) {
@@ -50,241 +47,17 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    if (_isEditing) {
-      _loadExistingRoute();
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadExistingRoute() async {
-    setState(() => _loading = true);
-    final route = await widget.bundle.repository.loadRouteById(widget.editRouteId!);
-    if (!mounted) return;
-
-    if (route == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ruta no encontrada')),
-      );
-      _closeEditor();
-      return;
-    }
-
-    setState(() {
-      _existingRoute = route;
-      _nameController.text = route.name;
-      _notesController.text = route.notes ?? '';
-      _selectedDifficulty = route.difficulty;
-      _isClosed = route.isClosed;
-      _waypoints.addAll(route.rawGeometry);
-      for (final sector in route.sectors) {
-        _sectorPoints.add(
-          GeoPoint(
-            latitude: sector.gate.start.latitude,
-            longitude: sector.gate.start.longitude,
-          ),
-        );
-      }
-      _loading = false;
-    });
-    _refreshAnnotations();
-  }
-
-  Future<void> _onMapCreated(MapboxMap map) async {
-    _mapboxMap = map;
-    _circleManager = await map.annotations.createCircleAnnotationManager();
-    _polylineManager = await map.annotations.createPolylineAnnotationManager();
-    await _refreshAnnotations();
-  }
-
-  void _onMapTap(MapContentGestureContext context) {
-    final coords = context.point.coordinates;
-    final lat = coords.lat.toDouble();
-    final lng = coords.lng.toDouble();
-    if (_sectorMode) {
-      _addSectorPoint(lat, lng);
-    } else {
-      _addWaypoint(lat, lng);
-    }
-  }
-
-  Future<void> _refreshAnnotations() async {
-    final circleManager = _circleManager;
-    final polylineManager = _polylineManager;
-    if (circleManager == null || polylineManager == null) return;
-
-    await circleManager.deleteAll();
-    await polylineManager.deleteAll();
-
-    // Draw waypoint circles (blue)
-    final waypointCircles = _waypoints.asMap().entries.map((entry) {
-      final wp = entry.value;
-      return CircleAnnotationOptions(
-        geometry: Point(coordinates: Position(wp.longitude, wp.latitude)),
-        circleRadius: 8.0,
-        circleColor: Colors.blue.value,
-        circleStrokeColor: Colors.white.value,
-        circleStrokeWidth: 2.0,
-      );
-    }).toList();
-
-    // Draw sector circles (orange)
-    final sectorCircles = _sectorPoints.map((sp) {
-      return CircleAnnotationOptions(
-        geometry: Point(coordinates: Position(sp.longitude, sp.latitude)),
-        circleRadius: 8.0,
-        circleColor: Colors.orange.value,
-        circleStrokeColor: Colors.white.value,
-        circleStrokeWidth: 2.0,
-      );
-    }).toList();
-
-    if (waypointCircles.isNotEmpty) {
-      await circleManager.createMulti(waypointCircles);
-    }
-    if (sectorCircles.isNotEmpty) {
-      await circleManager.createMulti(sectorCircles);
-    }
-
-    // Draw polyline connecting waypoints
-    if (_waypoints.length >= 2) {
-      final positions = _waypoints
-          .map((wp) => Position(wp.longitude, wp.latitude))
-          .toList();
-      await polylineManager.create(
-        PolylineAnnotationOptions(
-          geometry: LineString(coordinates: positions),
-          lineColor: Colors.blue.value,
-          lineWidth: 3.0,
-        ),
-      );
-    }
-  }
-
-  void _addWaypoint(double latitude, double longitude) {
-    setState(() {
-      _waypoints.add(GeoPoint(latitude: latitude, longitude: longitude));
-    });
-    _refreshAnnotations();
-  }
-
-  void _addSectorPoint(double latitude, double longitude) {
-    if (_waypoints.length < 2) return;
-
-    final snapped = _nearestPointOnRoute(latitude, longitude);
-    if (snapped != null) {
-      setState(() {
-        _sectorPoints.add(snapped);
-      });
-      _refreshAnnotations();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Toca más cerca de la ruta para añadir un sector')),
-      );
-    }
-  }
-
-  GeoPoint? _nearestPointOnRoute(double lat, double lng) {
-    const maxDistanceM = 500.0;
-    double bestDistance = double.infinity;
-    GeoPoint? bestPoint;
-
-    for (int i = 0; i < _waypoints.length - 1; i++) {
-      final a = _waypoints[i];
-      final b = _waypoints[i + 1];
-
-      final projected = _projectOntoSegment(lat, lng, a, b);
-      final distance = _haversineMeters(lat, lng, projected.latitude, projected.longitude);
-
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestPoint = projected;
-      }
-    }
-
-    if (bestDistance <= maxDistanceM && bestPoint != null) {
-      return bestPoint;
-    }
-    return null;
-  }
-
-  GeoPoint _projectOntoSegment(double lat, double lng, GeoPoint a, GeoPoint b) {
-    final dx = b.longitude - a.longitude;
-    final dy = b.latitude - a.latitude;
-    final lenSq = dx * dx + dy * dy;
-
-    if (lenSq == 0) return a;
-
-    var t = ((lng - a.longitude) * dx + (lat - a.latitude) * dy) / lenSq;
-    t = t.clamp(0.0, 1.0);
-
-    return GeoPoint(
-      latitude: a.latitude + t * dy,
-      longitude: a.longitude + t * dx,
-    );
-  }
-
-  static double _haversineMeters(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final dLat = _toRad(lat2 - lat1);
-    final dLng = _toRad(lng2 - lng1);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRad(lat1)) * cos(_toRad(lat2)) * sin(dLng / 2) * sin(dLng / 2);
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
-  }
-
-  static double _toRad(double deg) => deg * pi / 180;
-
-  double _totalDistanceKm() {
-    double total = 0;
-    for (int i = 0; i < _waypoints.length - 1; i++) {
-      total += _haversineMeters(
-        _waypoints[i].latitude,
-        _waypoints[i].longitude,
-        _waypoints[i + 1].latitude,
-        _waypoints[i + 1].longitude,
-      );
-    }
-    return total / 1000;
-  }
-
-  void _undo() {
-    setState(() {
-      if (_sectorMode && _sectorPoints.isNotEmpty) {
-        _sectorPoints.removeLast();
-      } else if (_waypoints.isNotEmpty) {
-        _waypoints.removeLast();
-      }
-    });
-    _refreshAnnotations();
-  }
-
-  GateDefinition _buildGateFromPoint(GeoPoint point, String id, String label) {
-    const offsetDeg = 0.0003;
-    return GateDefinition(
-      id: id,
-      label: label,
-      start: GeoPoint(
-        latitude: point.latitude - offsetDeg,
-        longitude: point.longitude - offsetDeg,
-      ),
-      end: GeoPoint(
-        latitude: point.latitude + offsetDeg,
-        longitude: point.longitude + offsetDeg,
-      ),
-    );
-  }
-
   Future<void> _showSaveDialog() async {
     final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: _controller.routeName);
+    final notesController = TextEditingController(text: _controller.routeNotes);
+    var selectedDifficulty = _controller.selectedDifficulty;
+    void disposeControllers() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        nameController.dispose();
+        notesController.dispose();
+      });
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -299,10 +72,9 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextFormField(
-                      controller: _nameController,
+                      controller: nameController,
                       decoration: const InputDecoration(
                         labelText: 'Nombre de la ruta',
-                        border: OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -313,37 +85,46 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<RouteDifficulty>(
-                      value: _selectedDifficulty,
+                      initialValue: selectedDifficulty,
                       decoration: const InputDecoration(
                         labelText: 'Dificultad',
-                        border: OutlineInputBorder(),
                       ),
                       items: RouteDifficulty.values
                           .map(
-                            (d) => DropdownMenuItem(value: d, child: Text(d.label)),
+                            (difficulty) => DropdownMenuItem(
+                              value: difficulty,
+                              child: Text(difficulty.label),
+                            ),
                           )
                           .toList(),
                       onChanged: (value) {
                         if (value != null) {
-                          setDialogState(() => _selectedDifficulty = value);
+                          setDialogState(() => selectedDifficulty = value);
                         }
                       },
                     ),
                     const SizedBox(height: 12),
                     SwitchListTile(
                       title: const Text('Circuito cerrado'),
-                      value: _isClosed,
+                      subtitle: _controller.isClosureCandidate
+                          ? const Text(
+                              'Cierre sugerido: el ultimo punto esta a menos de 30 m',
+                            )
+                          : const Text(
+                              'La ruta se guardara como abierta salvo activacion manual',
+                            ),
+                      value: _controller.isClosed,
                       onChanged: (value) {
-                        setDialogState(() => _isClosed = value);
+                        _controller.setClosedPreference(value);
+                        setDialogState(() {});
                       },
                       contentPadding: EdgeInsets.zero,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: _notesController,
+                      controller: notesController,
                       decoration: const InputDecoration(
                         labelText: 'Notas (opcional)',
-                        border: OutlineInputBorder(),
                       ),
                       maxLines: 3,
                     ),
@@ -359,6 +140,11 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
               FilledButton(
                 onPressed: () {
                   if (formKey.currentState?.validate() ?? false) {
+                    _controller.updateDraft(
+                      name: nameController.text,
+                      notes: notesController.text,
+                      difficulty: selectedDifficulty,
+                    );
                     Navigator.of(dialogContext).pop(true);
                   }
                 },
@@ -370,438 +156,330 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
       ),
     );
 
-    if (confirmed == true) {
-      await _saveRoute();
-    }
-  }
+    disposeControllers();
 
-  Future<void> _saveRoute() async {
-    if (_isSaving || !_canSave) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final routeId = _isEditing
-          ? widget.editRouteId!
-          : widget.bundle.repository.createId('route');
-
-      final sectors = <SectorDefinition>[];
-      for (var i = 0; i < _sectorPoints.length; i++) {
-        final point = _sectorPoints[i];
-        sectors.add(
-          SectorDefinition(
-            id: widget.bundle.repository.createId('sector'),
-            routeTemplateId: routeId,
-            order: i + 1,
-            label: 'Sector ${i + 1}',
-            gate: _buildGateFromPoint(point, 'gate-s${i + 1}', 'S${i + 1}'),
-          ),
-        );
-      }
-
-      final route = RouteTemplate(
-        id: routeId,
-        name: _nameController.text.trim(),
-        difficulty: _selectedDifficulty,
-        isClosed: _isClosed,
-        rawGeometry: List.from(_waypoints),
-        startFinishGate: _buildGateFromPoint(
-          _waypoints.first,
-          'start-finish',
-          'Salida/Meta',
-        ),
-        sectors: sectors,
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
-        createdAt: _existingRoute?.createdAt ?? DateTime.now(),
-      );
-
-      await widget.bundle.repository.saveRoute(route);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isEditing ? 'Ruta actualizada' : 'Ruta guardada'),
-        ),
-      );
-
-      if (_isEditing) {
-        _closeEditor();
-      } else {
-        context.go('/routes');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (_loading) {
-      return Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _closeEditor,
-          ),
-          title: const Text('Cargando...'),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+    if (confirmed != true) {
+      return;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _closeEditor,
-        ),
-        title: Text(_isEditing ? 'Editar ruta' : 'Crear ruta'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.undo),
-            onPressed: (_waypoints.isEmpty && _sectorPoints.isEmpty) ? null : _undo,
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _canSave ? _showSaveDialog : null,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Map
-          Expanded(
-            flex: 3,
-            child: Stack(
-              children: [
-                widget.bundle.config.hasMapboxToken
-                    ? MapWidget(
-                        key: const ValueKey('route-editor-mapbox-map'),
-                        styleUri: widget.bundle.config.mapboxStyleUri,
-                        cameraOptions: CameraOptions(
-                          center: Point(
-                            coordinates: _waypoints.isNotEmpty
-                                ? Position(
-                                    _waypoints.first.longitude,
-                                    _waypoints.first.latitude,
-                                  )
-                                : Position(-3.7038, 40.4168),
-                          ),
-                          zoom: _waypoints.isNotEmpty ? 13 : 10.4,
-                        ),
-                        onMapCreated: _onMapCreated,
-                        onTapListener: _onMapTap,
-                      )
-                    : Container(
-                        color: const Color(0xFFE7DED1),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.map, size: 48, color: Colors.grey),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Añade MAPBOX_ACCESS_TOKEN\npara ver el mapa',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                // Sector mode indicator
-                if (_sectorMode)
-                  Positioned(
-                    top: 8,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade700,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Modo sector activo',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+    final route = await _controller.saveRoute();
+    if (!mounted || route == null) {
+      return;
+    }
 
-          // Controls panel
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              border: Border(
-                top: BorderSide(color: theme.colorScheme.outlineVariant),
-              ),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Column(
-                children: [
-                  // Info bar
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: Row(
-                      children: [
-                        _StatChip(
-                          label: 'Distancia',
-                          value: '${_totalDistanceKm().toStringAsFixed(2)} km',
-                        ),
-                        const SizedBox(width: 12),
-                        _StatChip(
-                          label: 'Puntos',
-                          value: '${_waypoints.length}',
-                        ),
-                        const SizedBox(width: 12),
-                        _StatChip(
-                          label: 'Sectores',
-                          value: '${_sectorPoints.length}',
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Sector mode toggle + manual add buttons
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: SegmentedButton<bool>(
-                            segments: const [
-                              ButtonSegment(
-                                value: false,
-                                label: Text('Waypoints'),
-                                icon: Icon(Icons.place),
-                              ),
-                              ButtonSegment(
-                                value: true,
-                                label: Text('Sectores'),
-                                icon: Icon(Icons.flag),
-                              ),
-                            ],
-                            selected: {_sectorMode},
-                            onSelectionChanged: (value) {
-                              setState(() => _sectorMode = value.first);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Manual add button (for demo / no-map-tap fallback)
-                        IconButton.filled(
-                          onPressed: _showManualCoordinateDialog,
-                          icon: const Icon(Icons.add_location_alt),
-                          tooltip: 'Añadir punto manual',
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Waypoint/Sector list (compact)
-                  if (_waypoints.isNotEmpty || _sectorPoints.isNotEmpty)
-                    SizedBox(
-                      height: 40,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        children: [
-                          ..._waypoints.asMap().entries.map(
-                            (entry) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Chip(
-                                avatar: CircleAvatar(
-                                  backgroundColor: theme.colorScheme.primary,
-                                  child: Text(
-                                    '${entry.key + 1}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                                label: Text(
-                                  '${entry.value.latitude.toStringAsFixed(4)}, ${entry.value.longitude.toStringAsFixed(4)}',
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
-                          ),
-                          ..._sectorPoints.asMap().entries.map(
-                            (entry) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Chip(
-                                avatar: CircleAvatar(
-                                  backgroundColor: Colors.orange.shade700,
-                                  child: Text(
-                                    'S${entry.key + 1}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                                label: Text(
-                                  '${entry.value.latitude.toStringAsFixed(4)}, ${entry.value.longitude.toStringAsFixed(4)}',
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-        ],
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_isEditing ? 'Ruta actualizada' : 'Ruta guardada'),
       ),
     );
-  }
 
-  Future<void> _showManualCoordinateDialog() async {
-    final latController = TextEditingController();
-    final lngController = TextEditingController();
-
-    // Default to Madrid center or last waypoint
-    if (_waypoints.isNotEmpty) {
-      final last = _waypoints.last;
-      latController.text = last.latitude.toStringAsFixed(6);
-      lngController.text = last.longitude.toStringAsFixed(6);
+    if (_isEditing) {
+      _closeEditor();
     } else {
-      latController.text = '40.4168';
-      lngController.text = '-3.7038';
+      context.go('/routes');
     }
+  }
 
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(_sectorMode ? 'Añadir sector' : 'Añadir waypoint'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: latController,
-              decoration: const InputDecoration(
-                labelText: 'Latitud',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-                signed: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: lngController,
-              decoration: const InputDecoration(
-                labelText: 'Longitud',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-                signed: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Añadir'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != true) return;
-
-    final lat = double.tryParse(latController.text);
-    final lng = double.tryParse(lngController.text);
-    latController.dispose();
-    lngController.dispose();
-
-    if (lat == null || lng == null ||
-        lat < -90 || lat > 90 ||
-        lng < -180 || lng > 180) {
-      if (mounted) {
+  void _handleMapTap(double latitude, double longitude) {
+    if (_controller.sectorMode) {
+      final added = _controller.addSectorPoint(latitude, longitude);
+      if (!added && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Coordenadas inválidas')),
+          const SnackBar(
+            content: Text('Toca más cerca de la ruta para añadir un sector'),
+          ),
         );
       }
       return;
     }
 
-    if (_sectorMode) {
-      _addSectorPoint(lat, lng);
-    } else {
-      _addWaypoint(lat, lng);
-    }
+    _controller.addWaypoint(latitude, longitude);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        if (_controller.isLoading) {
+          return Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                tooltip: 'Volver',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: _closeEditor,
+              ),
+              title: const Text('Cargando...'),
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              tooltip: 'Volver',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: _closeEditor,
+            ),
+            title: Text(_isEditing ? 'Editar ruta' : 'Crear ruta'),
+            actions: [
+              IconButton(
+                tooltip: 'Deshacer',
+                icon: const Icon(Icons.undo),
+                onPressed:
+                    (_controller.waypoints.isEmpty &&
+                        _controller.sectorPoints.isEmpty)
+                    ? null
+                    : _controller.undo,
+              ),
+              IconButton(
+                tooltip: 'Guardar ruta',
+                icon: const Icon(Icons.save),
+                onPressed: _controller.canSave ? _showSaveDialog : null,
+              ),
+            ],
+          ),
+          body: MapBottomSheetScaffold(
+            initialChildSize: 0.15,
+            background: RouteEditorMapPanel(
+              config: widget.bundle.config,
+              displayedGeometry: _controller.displayedGeometry,
+              waypoints: _controller.waypoints,
+              sectorPoints: _controller.sectorPoints,
+              sectorMode: _controller.sectorMode,
+              onMapTap: _handleMapTap,
+            ),
+            compactChild: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ModeButton(
+                        label: 'Waypoint',
+                        icon: Icons.place,
+                        selected: !_controller.sectorMode,
+                        onPressed: () => _controller.toggleSectorMode(false),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _ModeButton(
+                        label: 'Sector',
+                        icon: Icons.flag,
+                        selected: _controller.sectorMode,
+                        onPressed: () => _controller.toggleSectorMode(true),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            expandedChildBuilder: (scrollController) => ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _StatCard(
+                      label: 'Distancia',
+                      value:
+                          '${_controller.totalDistanceKm().toStringAsFixed(2)} km',
+                    ),
+                    _StatCard(
+                      label: 'Puntos',
+                      value: '${_controller.waypoints.length}',
+                    ),
+                    _StatCard(
+                      label: 'Sectores',
+                      value: '${_controller.sectorPoints.length}',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilterChip(
+                      label: Text(
+                        _controller.isClosed
+                            ? 'Circuito cerrado'
+                            : 'Ruta abierta',
+                      ),
+                      selected: _controller.isClosed,
+                      onSelected: _controller.setClosedPreference,
+                    ),
+                    if (_controller.isClosureCandidate)
+                      const Chip(
+                        avatar: Icon(Icons.loop, size: 18),
+                        label: Text('Cierre sugerido (< 30 m)'),
+                      ),
+                    if (_controller.isRoutingPreviewLoading)
+                      const Chip(
+                        avatar: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        label: Text('Ajustando por carretera'),
+                      )
+                    else if (_controller.routePreviewStatus ==
+                            RoutePreviewStatus.error &&
+                        _controller.waypoints.length >= 2)
+                      const Chip(
+                        avatar: Icon(Icons.warning_amber_rounded, size: 18),
+                        label: Text('Preview sin Mapbox, usando trazado base'),
+                      ),
+                  ],
+                ),
+                if (_controller.waypoints.isNotEmpty ||
+                    _controller.sectorPoints.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 42,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        ..._controller.waypoints.asMap().entries.map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: _PointChip(
+                              badgeLabel: '${entry.key + 1}',
+                              title:
+                                  '${entry.value.latitude.toStringAsFixed(4)}, ${entry.value.longitude.toStringAsFixed(4)}',
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        ..._controller.sectorPoints.asMap().entries.map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: _PointChip(
+                              badgeLabel: 'S${entry.key + 1}',
+                              title:
+                                  '${entry.value.latitude.toStringAsFixed(4)}, ${entry.value.longitude.toStringAsFixed(4)}',
+                              color: const Color(0xFFEA580C),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
-class _StatChip extends StatelessWidget {
-  const _StatChip({required this.label, required this.value});
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: selected
+            ? theme.colorScheme.onPrimaryContainer
+            : theme.colorScheme.onSurface,
+        backgroundColor: selected
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surface,
+        side: BorderSide(
+          color: selected
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.outlineVariant,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      ),
+      icon: Icon(icon),
+      label: Text(label),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 88),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+          ),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PointChip extends StatelessWidget {
+  const _PointChip({
+    required this.badgeLabel,
+    required this.title,
+    required this.color,
+  });
+
+  final String badgeLabel;
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: CircleAvatar(
+        backgroundColor: color,
+        child: Text(
+          badgeLabel,
+          style: const TextStyle(color: Colors.white, fontSize: 10),
         ),
       ),
+      label: Text(title, style: const TextStyle(fontSize: 10)),
+      visualDensity: VisualDensity.compact,
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../bootstrap/app_bootstrap.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/inline_info_chip.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({
@@ -130,19 +131,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             spacing: 16,
                             runSpacing: 4,
                             children: [
-                              _InfoChip(
+                              InlineInfoChip(
                                 icon: Icons.straighten,
                                 label: '${session.distanceM.toStringAsFixed(0)} m',
                               ),
-                              _InfoChip(
+                              InlineInfoChip(
                                 icon: Icons.speed,
                                 label: '${session.maxSpeedKmh.toStringAsFixed(1)} km/h máx',
                               ),
-                              _InfoChip(
+                              InlineInfoChip(
                                 icon: Icons.loop,
                                 label: '${session.lapSummaries.length} vueltas',
                               ),
-                              _InfoChip(
+                              InlineInfoChip(
                                 icon: Icons.flag,
                                 label: '${session.sectorSummaries.length} sectores',
                               ),
@@ -158,30 +159,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           },
         ),
       ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
     );
   }
 }

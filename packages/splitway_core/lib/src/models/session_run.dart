@@ -1,4 +1,5 @@
 import 'lap_summary.dart';
+import 'manual_split_summary.dart';
 import 'sector_summary.dart';
 import 'telemetry_point.dart';
 
@@ -22,6 +23,7 @@ class SessionRun {
     required this.avgSpeedKmh,
     required this.lapSummaries,
     required this.sectorSummaries,
+    required this.manualSplitSummaries,
     required this.telemetry,
   });
 
@@ -36,6 +38,7 @@ class SessionRun {
   final double avgSpeedKmh;
   final List<LapSummary> lapSummaries;
   final List<SectorSummary> sectorSummaries;
+  final List<ManualSplitSummary> manualSplitSummaries;
   final List<TelemetryPoint> telemetry;
 
   Map<String, dynamic> toJson() => {
@@ -50,6 +53,8 @@ class SessionRun {
         'avgSpeedKmh': avgSpeedKmh,
         'lapSummaries': lapSummaries.map((item) => item.toJson()).toList(),
         'sectorSummaries': sectorSummaries.map((item) => item.toJson()).toList(),
+        'manualSplitSummaries':
+            manualSplitSummaries.map((item) => item.toJson()).toList(),
         'telemetry': telemetry.map((item) => item.toJson()).toList(),
       };
 
@@ -69,6 +74,13 @@ class SessionRun {
         sectorSummaries: (json['sectorSummaries'] as List<dynamic>)
             .map((item) => SectorSummary.fromJson(item as Map<String, dynamic>))
             .toList(),
+        manualSplitSummaries:
+            ((json['manualSplitSummaries'] as List<dynamic>?) ?? const [])
+                .map(
+                  (item) =>
+                      ManualSplitSummary.fromJson(item as Map<String, dynamic>),
+                )
+                .toList(),
         telemetry: (json['telemetry'] as List<dynamic>)
             .map((item) => TelemetryPoint.fromJson(item as Map<String, dynamic>))
             .toList(),

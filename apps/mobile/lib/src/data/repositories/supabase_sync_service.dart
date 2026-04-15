@@ -107,6 +107,8 @@ class SupabaseSyncService {
       'avg_speed_kmh': session.avgSpeedKmh,
       'lap_summaries': session.lapSummaries.map((item) => item.toJson()).toList(),
       'sector_summaries': session.sectorSummaries.map((item) => item.toJson()).toList(),
+      'manual_split_summaries':
+          session.manualSplitSummaries.map((item) => item.toJson()).toList(),
     });
 
     await supabase.from('telemetry_points').delete().eq('session_run_id', session.id);
@@ -185,6 +187,40 @@ class SupabaseSyncService {
     );
 
     return response.data as Map<String, dynamic>?;
+  }
+
+  List<GeoPoint>? parseGeometry(Map<String, dynamic>? payload) {
+    final geometry = payload?['geometry'];
+    if (geometry is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final coordinates = geometry['coordinates'];
+    if (coordinates is! List) {
+      return null;
+    }
+
+    final points = <GeoPoint>[];
+    for (final coordinate in coordinates) {
+      if (coordinate is! List || coordinate.length < 2) {
+        return null;
+      }
+
+      final longitude = coordinate[0];
+      final latitude = coordinate[1];
+      if (longitude is! num || latitude is! num) {
+        return null;
+      }
+
+      points.add(
+        GeoPoint(
+          latitude: latitude.toDouble(),
+          longitude: longitude.toDouble(),
+        ),
+      );
+    }
+
+    return points.length >= 2 ? List.unmodifiable(points) : null;
   }
 
   Map<String, dynamic> _lineString(List<GeoPoint> points) => {

@@ -66,7 +66,9 @@ flutter run \
   --dart-define=MAPBOX_BASE_URL=https://api.mapbox.com
 ```
 
-For local Supabase on the Android emulator, `env/local.json` should look like:
+For local Supabase on the Android emulator, do not use `localhost` or `127.0.0.1` for `SUPABASE_URL`. Inside the emulator those addresses point back to the emulator itself, not to your PC. Use `10.0.2.2`, which is the special Android emulator alias for the host machine.
+
+`env/local.json` should look like:
 
 ```json
 {
