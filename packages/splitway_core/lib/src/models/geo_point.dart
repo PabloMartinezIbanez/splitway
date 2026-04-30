@@ -1,0 +1,59 @@
+import 'dart:math' as math;
+
+class GeoPoint {
+  const GeoPoint({required this.latitude, required this.longitude});
+
+  final double latitude;
+  final double longitude;
+
+  static const double _earthRadiusMeters = 6371000.0;
+
+  double distanceTo(GeoPoint other) {
+    final lat1 = _toRadians(latitude);
+    final lat2 = _toRadians(other.latitude);
+    final dLat = _toRadians(other.latitude - latitude);
+    final dLon = _toRadians(other.longitude - longitude);
+
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return _earthRadiusMeters * c;
+  }
+
+  double bearingTo(GeoPoint other) {
+    final lat1 = _toRadians(latitude);
+    final lat2 = _toRadians(other.latitude);
+    final dLon = _toRadians(other.longitude - longitude);
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final bearing = math.atan2(y, x);
+    return (_toDegrees(bearing) + 360) % 360;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'latitude': latitude,
+        'longitude': longitude,
+      };
+
+  factory GeoPoint.fromJson(Map<String, dynamic> json) => GeoPoint(
+        latitude: (json['latitude'] as num).toDouble(),
+        longitude: (json['longitude'] as num).toDouble(),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GeoPoint &&
+          other.latitude == latitude &&
+          other.longitude == longitude;
+
+  @override
+  int get hashCode => Object.hash(latitude, longitude);
+
+  @override
+  String toString() => 'GeoPoint($latitude, $longitude)';
+
+  static double _toRadians(double degrees) => degrees * math.pi / 180.0;
+  static double _toDegrees(double radians) => radians * 180.0 / math.pi;
+}
