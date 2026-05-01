@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
 
+import '../../config/app_config.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/route_map_painter.dart';
+import '../../shared/widgets/splitway_map.dart';
 import 'live_session_controller.dart';
 
 class LiveSessionScreen extends StatefulWidget {
-  const LiveSessionScreen({super.key, required this.controller});
+  const LiveSessionScreen({
+    super.key,
+    required this.controller,
+    required this.config,
+  });
 
   final LiveSessionController controller;
+  final AppConfig config;
 
   @override
   State<LiveSessionScreen> createState() => _LiveSessionScreenState();
@@ -80,9 +86,9 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
             Expanded(
               child: Card(
                 clipBehavior: Clip.antiAlias,
-                child: CustomPaint(
-                  painter: RouteMapPainter(route: ctrl.selected!),
-                  child: const SizedBox.expand(),
+                child: SplitwayMap(
+                  useMapbox: widget.config.hasMapbox,
+                  route: ctrl.selected!,
                 ),
               ),
             ),
@@ -94,8 +100,9 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Iter 1: la grabación usa puntos simulados — pulsa "Simular" o '
-            '"Auto" para emular un GPS sin necesidad de moverte.',
+            'La grabación usa puntos simulados — pulsa "Simular punto" o '
+            '"Auto vuelta" para emular un GPS sin necesidad de moverte. '
+            'En iter 2.5 se conecta al GPS real.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
@@ -117,13 +124,11 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           Expanded(
             child: Card(
               clipBehavior: Clip.antiAlias,
-              child: CustomPaint(
-                painter: RouteMapPainter(
-                  route: route,
-                  telemetry: tracker.ingested,
-                  highlightSectorId: snapshot.lastCrossedSectorId,
-                ),
-                child: const SizedBox.expand(),
+              child: SplitwayMap(
+                useMapbox: widget.config.hasMapbox,
+                route: route,
+                telemetry: tracker.ingested,
+                highlightSectorId: snapshot.lastCrossedSectorId,
               ),
             ),
           ),
@@ -190,12 +195,10 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           clipBehavior: Clip.antiAlias,
           child: AspectRatio(
             aspectRatio: 4 / 3,
-            child: CustomPaint(
-              painter: RouteMapPainter(
-                route: route,
-                telemetry: result.points,
-              ),
-              child: const SizedBox.expand(),
+            child: SplitwayMap(
+              useMapbox: widget.config.hasMapbox,
+              route: route,
+              telemetry: result.points,
             ),
           ),
         ),

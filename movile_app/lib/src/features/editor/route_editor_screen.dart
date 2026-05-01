@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
 
+import '../../config/app_config.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/route_map_painter.dart';
+import '../../shared/widgets/splitway_map.dart';
 import 'route_editor_controller.dart';
 
 class RouteEditorScreen extends StatefulWidget {
-  const RouteEditorScreen({super.key, required this.controller});
+  const RouteEditorScreen({
+    super.key,
+    required this.controller,
+    required this.config,
+  });
 
   final RouteEditorController controller;
+  final AppConfig config;
 
   @override
   State<RouteEditorScreen> createState() => _RouteEditorScreenState();
@@ -37,10 +43,10 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
       builder: (_) => const _NewRouteDialog(),
     );
     if (result == null) return;
-    await widget.controller.createPlaceholderRoute(
+    widget.controller.startDrawing(
       name: result.name,
-      difficulty: result.difficulty,
       description: result.description,
+      difficulty: result.difficulty,
     );
   }
 
@@ -70,6 +76,12 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final ctrl = widget.controller;
+    if (ctrl.drawing) {
+      return _DrawingView(
+        controller: ctrl,
+        config: widget.config,
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Editor de rutas'),
@@ -106,8 +118,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
                         itemBuilder: (_, index) {
                           final route = ctrl.routes[index];
-                          final selected =
-                              route.id == ctrl.selected?.id;
+                          final selected = route.id == ctrl.selected?.id;
                           return ChoiceChip(
                             selected: selected,
                             label: Text(route.name),
@@ -118,10 +129,13 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     ),
                     const Divider(height: 1),
                     if (ctrl.selected != null)
-                      Expanded(child: _RouteDetail(
-                        route: ctrl.selected!,
-                        onDelete: () => _confirmDelete(ctrl.selected!),
-                      )),
+                      Expanded(
+                        child: _RouteDetail(
+                          route: ctrl.selected!,
+                          config: widget.config,
+                          onDelete: () => _confirmDelete(ctrl.selected!),
+                        ),
+                      ),
                   ],
                 ),
     );
@@ -129,9 +143,14 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
 }
 
 class _RouteDetail extends StatelessWidget {
-  const _RouteDetail({required this.route, required this.onDelete});
+  const _RouteDetail({
+    required this.route,
+    required this.config,
+    required this.onDelete,
+  });
 
   final RouteTemplate route;
+  final AppConfig config;
   final VoidCallback onDelete;
 
   @override
@@ -144,12 +163,9 @@ class _RouteDetail extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: AspectRatio(
             aspectRatio: 4 / 3,
-            child: ColoredBox(
-              color: theme.colorScheme.surfaceContainerHighest,
-              child: CustomPaint(
-                painter: RouteMapPainter(route: route),
-                child: const SizedBox.expand(),
-              ),
+            child: SplitwayMap(
+              useMapbox: config.hasMapbox,
+              route: route,
             ),
           ),
         ),
@@ -181,8 +197,7 @@ class _RouteDetail extends StatelessWidget {
               dense: true,
             )),
         const SizedBox(height: 16),
-        Text('Inicio / meta',
-            style: theme.textTheme.titleMedium),
+        Text('Inicio / meta', style: theme.textTheme.titleMedium),
         ListTile(
           leading: const CircleAvatar(child: Icon(Icons.flag)),
           title: Text(
@@ -203,6 +218,206 @@ class _RouteDetail extends StatelessWidget {
   }
 
   String _fmt(double v) => v.toStringAsFixed(5);
+}
+
+class _DrawingView extends StatelessWidget {
+  const _DrawingView({required this.controller, required this.config});
+
+  final RouteEditorController controller;
+  final AppConfig config;
+
+  String _modeLabel(DrawInputMode mode) => switch (mode) {
+        DrawInputMode.appendPath => 'Toca para añadir un punto al trazado',
+        DrawInputMode.startGate => 'Toca 2 veces para definir la línea de inicio/meta',
+        DrawInputMode.sectorGate => 'Toca 2 veces para añadir un sector',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Dibujando: ${controller.draftName}'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: 'Cancelar',
+          onPressed: () async {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('Cancelar dibujo'),
+                content:
+                    const Text('Se descartarán los puntos sin guardar.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Volver'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Descartar'),
+                  ),
+                ],
+              ),
+            );
+            if (ok == true) controller.cancelDrawing();
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: controller.draftCanSave
+                ? () async {
+                    final saved = await controller.saveDraft();
+                    if (!context.mounted) return;
+                    if (saved != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Guardada "${saved.name}"')),
+                      );
+                    }
+                  }
+                : null,
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SplitwayMap(
+              useMapbox: config.hasMapbox,
+              draftPath: controller.draftPath,
+              draftStartGate: controller.draftStartGate,
+              draftSectorGates: controller.draftSectorGates,
+              onTap: controller.handleMapTap,
+            ),
+          ),
+          if (!config.hasMapbox)
+            Container(
+              width: double.infinity,
+              color: theme.colorScheme.tertiaryContainer,
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                'Sin Mapbox token configurado. El mapa interactivo está '
+                'desactivado; para probar el dibujo, añade un token y reinicia.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          Container(
+            color: theme.colorScheme.surfaceContainerHighest,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(_modeLabel(controller.inputMode),
+                    style: theme.textTheme.bodyMedium),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Trazado'),
+                      selected: controller.inputMode == DrawInputMode.appendPath,
+                      onSelected: (_) =>
+                          controller.setInputMode(DrawInputMode.appendPath),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Inicio / meta'),
+                      selected: controller.inputMode == DrawInputMode.startGate,
+                      onSelected: (_) =>
+                          controller.setInputMode(DrawInputMode.startGate),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Añadir sector'),
+                      selected: controller.inputMode == DrawInputMode.sectorGate,
+                      onSelected: (_) =>
+                          controller.setInputMode(DrawInputMode.sectorGate),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: controller.draftPath.isEmpty
+                          ? null
+                          : controller.undoLastPathPoint,
+                      icon: const Icon(Icons.undo, size: 18),
+                      label: const Text('Deshacer punto'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _DraftStatus(controller: controller),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DraftStatus extends StatelessWidget {
+  const _DraftStatus({required this.controller});
+
+  final RouteEditorController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        _StatusChip(
+          icon: Icons.timeline,
+          label: '${controller.draftPath.length} puntos',
+          ok: controller.draftPath.length >= 2,
+        ),
+        const SizedBox(width: 8),
+        _StatusChip(
+          icon: Icons.flag,
+          label: controller.draftStartGate == null
+              ? 'Sin inicio'
+              : 'Inicio definido',
+          ok: controller.draftStartGate != null,
+        ),
+        const SizedBox(width: 8),
+        _StatusChip(
+          icon: Icons.flag_outlined,
+          label: '${controller.draftSectorGates.length} sectores',
+          ok: true,
+          neutral: true,
+        ),
+        if (controller.pendingGateLeft != null) ...[
+          const SizedBox(width: 8),
+          Text('Falta el 2º punto…', style: theme.textTheme.labelSmall),
+        ],
+      ],
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.icon,
+    required this.label,
+    required this.ok,
+    this.neutral = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool ok;
+  final bool neutral;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = neutral
+        ? Colors.blueGrey
+        : (ok ? Colors.green : Colors.orange);
+    return Chip(
+      avatar: Icon(icon, size: 16, color: color.shade800),
+      label: Text(label),
+      visualDensity: VisualDensity.compact,
+      backgroundColor: color.withValues(alpha: 0.15),
+      side: BorderSide(color: color.withValues(alpha: 0.5)),
+    );
+  }
 }
 
 class _DifficultyChip extends StatelessWidget {
@@ -320,7 +535,7 @@ class _NewRouteDialogState extends State<_NewRouteDialog> {
               ),
             );
           },
-          child: const Text('Crear'),
+          child: const Text('Empezar a dibujar'),
         ),
       ],
     );

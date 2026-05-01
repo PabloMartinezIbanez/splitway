@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '../config/app_config.dart';
 import '../data/repositories/local_draft_repository.dart';
 import '../features/editor/route_editor_controller.dart';
 import '../features/editor/route_editor_screen.dart';
@@ -9,11 +10,12 @@ import '../features/session/live_session_controller.dart';
 import '../features/session/live_session_screen.dart';
 
 class AppRouter {
-  AppRouter(this.repository)
+  AppRouter({required this.repository, required this.config})
       : _editorController = RouteEditorController(repository),
         _sessionController = LiveSessionController(repository);
 
   final LocalDraftRepository repository;
+  final AppConfig config;
   final RouteEditorController _editorController;
   final LiveSessionController _sessionController;
 
@@ -27,8 +29,10 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/editor',
-                builder: (_, __) =>
-                    RouteEditorScreen(controller: _editorController),
+                builder: (_, __) => RouteEditorScreen(
+                  controller: _editorController,
+                  config: config,
+                ),
               ),
             ],
           ),
@@ -36,8 +40,10 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/session',
-                builder: (_, __) =>
-                    LiveSessionScreen(controller: _sessionController),
+                builder: (_, __) => LiveSessionScreen(
+                  controller: _sessionController,
+                  config: config,
+                ),
               ),
             ],
           ),
@@ -45,8 +51,10 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/history',
-                builder: (_, __) =>
-                    HistoryScreen(repository: repository),
+                builder: (_, __) => HistoryScreen(
+                  repository: repository,
+                  config: config,
+                ),
               ),
             ],
           ),

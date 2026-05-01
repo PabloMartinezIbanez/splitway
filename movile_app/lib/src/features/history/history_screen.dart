@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
 
+import '../../config/app_config.dart';
 import '../../data/repositories/local_draft_repository.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/route_map_painter.dart';
+import '../../shared/widgets/splitway_map.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key, required this.repository});
+  const HistoryScreen({
+    super.key,
+    required this.repository,
+    this.config = const AppConfig(),
+  });
 
   final LocalDraftRepository repository;
+  final AppConfig config;
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -68,8 +74,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   itemBuilder: (_, index) {
                     final s = _sessions[index];
                     final r = _routes[s.routeTemplateId];
-                    return _SessionTile(session: s, route: r,
+                    return _SessionTile(
+                      session: s,
+                      route: r,
                       repository: widget.repository,
+                      config: widget.config,
                     );
                   },
                 ),
@@ -82,11 +91,13 @@ class _SessionTile extends StatelessWidget {
     required this.session,
     required this.route,
     required this.repository,
+    required this.config,
   });
 
   final SessionRun session;
   final RouteTemplate? route;
   final LocalDraftRepository repository;
+  final AppConfig config;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +116,7 @@ class _SessionTile extends StatelessWidget {
                   builder: (_) => SessionDetailScreen(
                     sessionId: session.id,
                     repository: repository,
+                    config: config,
                   ),
                 )),
       ),
@@ -117,10 +129,12 @@ class SessionDetailScreen extends StatefulWidget {
     super.key,
     required this.sessionId,
     required this.repository,
+    this.config = const AppConfig(),
   });
 
   final String sessionId;
   final LocalDraftRepository repository;
+  final AppConfig config;
 
   @override
   State<SessionDetailScreen> createState() => _SessionDetailScreenState();
@@ -200,12 +214,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: AspectRatio(
                         aspectRatio: 4 / 3,
-                        child: CustomPaint(
-                          painter: RouteMapPainter(
-                            route: _route!,
-                            telemetry: _session!.points,
-                          ),
-                          child: const SizedBox.expand(),
+                        child: SplitwayMap(
+                          useMapbox: widget.config.hasMapbox,
+                          route: _route!,
+                          telemetry: _session!.points,
                         ),
                       ),
                     ),

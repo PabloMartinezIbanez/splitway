@@ -3,6 +3,19 @@ import 'package:splitway_core/splitway_core.dart';
 
 import '../../data/repositories/local_draft_repository.dart';
 
+/// Which kind of input the next map tap should produce while drawing a
+/// new route in the editor.
+enum DrawInputMode {
+  /// Each tap appends a point to the route path.
+  appendPath,
+
+  /// The next two taps define the start/finish gate.
+  startGate,
+
+  /// The next two taps define a sector gate.
+  sectorGate,
+}
+
 class RouteEditorController extends ChangeNotifier {
   RouteEditorController(this._repo);
 
@@ -17,13 +30,49 @@ class RouteEditorController extends ChangeNotifier {
   RouteTemplate? _selected;
   RouteTemplate? get selected => _selected;
 
+  // ---------- Draw mode state ----------
+
+  bool _drawing = false;
+  bool get drawing => _drawing;
+
+  String _draftName = '';
+  String? _draftDescription;
+  RouteDifficulty _draftDifficulty = RouteDifficulty.medium;
+  String get draftName => _draftName;
+  String? get draftDescription => _draftDescription;
+  RouteDifficulty get draftDifficulty => _draftDifficulty;
+
+  final List<GeoPoint> _draftPath = [];
+  List<GeoPoint> get draftPath => List.unmodifiable(_draftPath);
+
+  GateDefinition? _draftStartGate;
+  GateDefinition? get draftStartGate => _draftStartGate;
+
+  final List<GateDefinition> _draftSectorGates = [];
+  List<GateDefinition> get draftSectorGates =>
+      List.unmodifiable(_draftSectorGates);
+
+  /// Buffers between long-presses while defining a 2-point gate.
+  GeoPoint? _pendingGateLeft;
+  GeoPoint? get pendingGateLeft => _pendingGateLeft;
+
+  DrawInputMode _inputMode = DrawInputMode.appendPath;
+  DrawInputMode get inputMode => _inputMode;
+
+  /// True if a draft can be persisted (≥2 path points and a start gate).
+  bool get draftCanSave =>
+      _draftPath.length >= 2 &&
+      _draftStartGate != null &&
+      _draftName.trim().isNotEmpty;
+
+  // ---------- Load / select ----------
+
   Future<void> load() async {
     _loading = true;
     notifyListeners();
     _routes = await _repo.getAllRoutes();
     _selected ??= _routes.isNotEmpty ? _routes.first : null;
     if (_selected != null) {
-      // Refresh the selected reference in case the list changed.
       _selected = _routes.firstWhere(
         (r) => r.id == _selected!.id,
         orElse: () => _routes.first,
@@ -38,62 +87,117 @@ class RouteEditorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Iter 1: creates a small placeholder route around the demo center so the
-  /// user can see the editor reflect their action. In iter 2 this will become
-  /// a Mapbox-driven drawing flow.
-  Future<RouteTemplate> createPlaceholderRoute({
+  // ---------- Draw mode lifecycle ----------
+
+  void startDrawing({
     required String name,
-    required RouteDifficulty difficulty,
     String? description,
-  }) async {
+    required RouteDifficulty difficulty,
+  }) {
+    _drawing = true;
+    _draftName = name;
+    _draftDescription = description;
+    _draftDifficulty = difficulty;
+    _draftPath.clear();
+    _draftStartGate = null;
+    _draftSectorGates.clear();
+    _pendingGateLeft = null;
+    _inputMode = DrawInputMode.appendPath;
+    notifyListeners();
+  }
+
+  void cancelDrawing() {
+    _drawing = false;
+    _draftName = '';
+    _draftDescription = null;
+    _draftDifficulty = RouteDifficulty.medium;
+    _draftPath.clear();
+    _draftStartGate = null;
+    _draftSectorGates.clear();
+    _pendingGateLeft = null;
+    _inputMode = DrawInputMode.appendPath;
+    notifyListeners();
+  }
+
+  void setInputMode(DrawInputMode mode) {
+    _inputMode = mode;
+    _pendingGateLeft = null;
+    notifyListeners();
+  }
+
+  void undoLastPathPoint() {
+    if (_draftPath.isEmpty) return;
+    _draftPath.removeLast();
+    notifyListeners();
+  }
+
+  /// Routes a single map tap to the right drafting bucket.
+  void handleMapTap(GeoPoint p) {
+    if (!_drawing) return;
+    switch (_inputMode) {
+      case DrawInputMode.appendPath:
+        _draftPath.add(p);
+      case DrawInputMode.startGate:
+        if (_pendingGateLeft == null) {
+          _pendingGateLeft = p;
+        } else {
+          _draftStartGate =
+              GateDefinition(left: _pendingGateLeft!, right: p);
+          _pendingGateLeft = null;
+          _inputMode = DrawInputMode.appendPath;
+        }
+      case DrawInputMode.sectorGate:
+        if (_pendingGateLeft == null) {
+          _pendingGateLeft = p;
+        } else {
+          _draftSectorGates.add(
+              GateDefinition(left: _pendingGateLeft!, right: p));
+          _pendingGateLeft = null;
+        }
+    }
+    notifyListeners();
+  }
+
+  Future<RouteTemplate?> saveDraft() async {
+    if (!draftCanSave) return null;
     final id = 'route-${DateTime.now().microsecondsSinceEpoch}';
-    final base = _routes.isNotEmpty
-        ? _routes.first.startFinishGate.center
-        : const GeoPoint(latitude: 40.4168, longitude: -3.7038);
     final route = RouteTemplate(
       id: id,
-      name: name,
-      description: description,
-      path: [
-        GeoPoint(latitude: base.latitude - 0.0008, longitude: base.longitude - 0.0008),
-        GeoPoint(latitude: base.latitude + 0.0008, longitude: base.longitude - 0.0008),
-        GeoPoint(latitude: base.latitude + 0.0008, longitude: base.longitude + 0.0008),
-        GeoPoint(latitude: base.latitude - 0.0008, longitude: base.longitude + 0.0008),
-        GeoPoint(latitude: base.latitude - 0.0008, longitude: base.longitude - 0.0008),
-      ],
-      startFinishGate: GateDefinition(
-        left: GeoPoint(latitude: base.latitude - 0.001, longitude: base.longitude - 0.0008),
-        right: GeoPoint(latitude: base.latitude - 0.0006, longitude: base.longitude - 0.0008),
-      ),
+      name: _draftName.trim(),
+      description: _draftDescription?.trim().isEmpty ?? true
+          ? null
+          : _draftDescription!.trim(),
+      path: List.unmodifiable(_draftPath),
+      startFinishGate: _draftStartGate!,
       sectors: [
-        SectorDefinition(
-          id: '$id-sec-1',
-          order: 0,
-          label: 'Sector 1',
-          gate: GateDefinition(
-            left: GeoPoint(latitude: base.latitude + 0.0008, longitude: base.longitude - 0.0002),
-            right: GeoPoint(latitude: base.latitude + 0.0008, longitude: base.longitude + 0.0002),
+        for (var i = 0; i < _draftSectorGates.length; i++)
+          SectorDefinition(
+            id: '$id-sec-${i + 1}',
+            order: i,
+            label: 'Sector ${i + 1}',
+            gate: _draftSectorGates[i],
           ),
-        ),
-        SectorDefinition(
-          id: '$id-sec-2',
-          order: 1,
-          label: 'Sector 2',
-          gate: GateDefinition(
-            left: GeoPoint(latitude: base.latitude - 0.0002, longitude: base.longitude + 0.0008),
-            right: GeoPoint(latitude: base.latitude + 0.0002, longitude: base.longitude + 0.0008),
-          ),
-        ),
       ],
-      difficulty: difficulty,
+      difficulty: _draftDifficulty,
       createdAt: DateTime.now(),
     );
     await _repo.saveRouteTemplate(route);
+    _drawing = false;
+    _draftName = '';
+    _draftDescription = null;
+    _draftDifficulty = RouteDifficulty.medium;
+    _draftPath.clear();
+    _draftStartGate = null;
+    _draftSectorGates.clear();
+    _pendingGateLeft = null;
+    _inputMode = DrawInputMode.appendPath;
     await load();
     _selected = route;
     notifyListeners();
     return route;
   }
+
+  // ---------- CRUD on existing routes ----------
 
   Future<void> deleteRoute(String id) async {
     await _repo.deleteRoute(id);

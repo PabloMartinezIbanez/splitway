@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Mapbox needs internet access for tiles. Foreground location is added
+         here for the GPS tracker that lands in iter 2.5; declared early so
+         iteration 2 doesn't have to revisit the manifest. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="splitway"
         android:name="${applicationName}"

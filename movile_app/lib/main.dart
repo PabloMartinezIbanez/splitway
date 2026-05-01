@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mbx;
 
 import 'src/app.dart';
 import 'src/config/app_config.dart';
@@ -12,6 +13,10 @@ Future<void> main() async {
   await initializeDateFormatting('es_ES');
 
   final config = await AppConfig.load();
+  if (config.hasMapbox) {
+    mbx.MapboxOptions.setAccessToken(config.mapboxToken!);
+  }
+
   final database = await SplitwayLocalDatabase.open();
   final seedRepo = LocalDraftRepository(database);
   await DemoSeed.ensureSeeded(seedRepo);

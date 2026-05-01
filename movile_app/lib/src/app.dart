@@ -27,7 +27,7 @@ class _SplitwayAppState extends State<SplitwayApp> {
   void initState() {
     super.initState();
     _repository = LocalDraftRepository(widget.database);
-    _router = AppRouter(_repository);
+    _router = AppRouter(repository: _repository, config: widget.config);
   }
 
   @override
