@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
 
 import '../../config/app_config.dart';
+import '../../services/tracking/live_tracking_controller.dart';
+import '../../services/tracking/location_service.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/splitway_map.dart';
@@ -93,16 +95,48 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
               ),
             ),
           const SizedBox(height: 16),
+          Text('Fuente de telemetría',
+              style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          SegmentedButton<TrackingSource>(
+            segments: const [
+              ButtonSegment(
+                value: TrackingSource.simulated,
+                label: Text('Simulada'),
+                icon: Icon(Icons.science_outlined),
+              ),
+              ButtonSegment(
+                value: TrackingSource.realGps,
+                label: Text('GPS real'),
+                icon: Icon(Icons.gps_fixed),
+              ),
+            ],
+            selected: {ctrl.source},
+            onSelectionChanged: (s) => ctrl.setSource(s.first),
+          ),
+          if (ctrl.permissionStatus != null) ...[
+            const SizedBox(height: 8),
+            _PermissionBanner(status: ctrl.permissionStatus!),
+          ],
+          const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: ctrl.selected == null ? null : ctrl.startSession,
+            onPressed: ctrl.selected == null
+                ? null
+                : () {
+                    // ignore: discarded_futures
+                    ctrl.startSession();
+                  },
             icon: const Icon(Icons.play_arrow),
             label: const Text('Comenzar grabación'),
           ),
           const SizedBox(height: 8),
           Text(
-            'La grabación usa puntos simulados — pulsa "Simular punto" o '
-            '"Auto vuelta" para emular un GPS sin necesidad de moverte. '
-            'En iter 2.5 se conecta al GPS real.',
+            ctrl.source == TrackingSource.simulated
+                ? 'En modo simulada: usa "Simular punto" o "Auto vuelta" para '
+                    'ejercitar el motor sin moverte.'
+                : 'En modo GPS real: el motor recibe directamente las muestras '
+                    'del GPS del dispositivo. Sal a un sitio con cielo abierto '
+                    'antes de comenzar para evitar fixes ruidosos.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
@@ -137,28 +171,34 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           const SizedBox(height: 8),
           _LastEventTile(snapshot: snapshot),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: ctrl.simulateOnePoint,
-                  icon: const Icon(Icons.fast_forward),
-                  label: const Text('Simular punto'),
+          if (ctrl.source == TrackingSource.simulated)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: ctrl.simulateOnePoint,
+                    icon: const Icon(Icons.fast_forward),
+                    label: const Text('Simular punto'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: ctrl.toggleAutoSimulate,
-                  icon: Icon(ctrl.isAutoSimulating
-                      ? Icons.pause
-                      : Icons.autorenew),
-                  label:
-                      Text(ctrl.isAutoSimulating ? 'Parar auto' : 'Auto vuelta'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: ctrl.toggleAutoSimulate,
+                    icon: Icon(ctrl.isAutoSimulating
+                        ? Icons.pause
+                        : Icons.autorenew),
+                    label: Text(
+                        ctrl.isAutoSimulating ? 'Parar auto' : 'Auto vuelta'),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            _GpsStatusTile(
+              tracker: tracker,
+              telemetryCount: tracker.ingested.length,
+            ),
           const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: () async {
@@ -368,4 +408,111 @@ class _Stat {
   _Stat(this.label, this.value);
   final String label;
   final String value;
+}
+
+class _PermissionBanner extends StatelessWidget {
+  const _PermissionBanner({required this.status});
+
+  final LocationPermissionStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (color, icon, text) = switch (status) {
+      LocationPermissionStatus.granted => (
+          Colors.green,
+          Icons.check_circle_outline,
+          'Permiso de ubicación concedido.',
+        ),
+      LocationPermissionStatus.denied => (
+          Colors.orange,
+          Icons.warning_amber_rounded,
+          'Permiso de ubicación denegado. Acepta el diálogo del sistema o '
+              'cambia a "Simulada".',
+        ),
+      LocationPermissionStatus.permanentlyDenied => (
+          Colors.red,
+          Icons.block,
+          'Permiso bloqueado permanentemente. Actívalo manualmente en los '
+              'ajustes del sistema.',
+        ),
+      LocationPermissionStatus.servicesDisabled => (
+          Colors.red,
+          Icons.location_off,
+          'Servicios de ubicación desactivados. Enciéndelos en los '
+              'ajustes del sistema.',
+        ),
+    };
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child:
+                Text(text, style: theme.textTheme.bodySmall),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GpsStatusTile extends StatelessWidget {
+  const _GpsStatusTile({
+    required this.tracker,
+    required this.telemetryCount,
+  });
+
+  final LiveTrackingController tracker;
+  final int telemetryCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final last = telemetryCount == 0 ? null : tracker.ingested.last;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            const Icon(Icons.gps_fixed, color: Colors.green),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'GPS real · $telemetryCount muestras',
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  if (last != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Precisión: ${last.accuracyMeters?.toStringAsFixed(1) ?? '–'} m'
+                      ' · ${last.location.latitude.toStringAsFixed(5)}, '
+                      '${last.location.longitude.toStringAsFixed(5)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Esperando primer fix…',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -5,8 +5,11 @@ import 'package:splitway_core/splitway_core.dart';
 
 import '../../data/repositories/local_draft_repository.dart';
 import '../../services/tracking/live_tracking_controller.dart';
+import '../../services/tracking/location_service.dart';
 
 enum LiveSessionStage { selecting, ready, running, finished }
+
+enum TrackingSource { simulated, realGps }
 
 class LiveSessionController extends ChangeNotifier {
   LiveSessionController(this._repo);
@@ -28,9 +31,17 @@ class LiveSessionController extends ChangeNotifier {
   SessionRun? _result;
   SessionRun? get result => _result;
 
+  TrackingSource _source = TrackingSource.simulated;
+  TrackingSource get source => _source;
+
+  LocationPermissionStatus? _permissionStatus;
+  LocationPermissionStatus? get permissionStatus => _permissionStatus;
+
   Timer? _autoSimulator;
   int _autoIndex = 0;
   List<TelemetryPoint> _autoScript = const [];
+
+  StreamSubscription<TelemetryPoint>? _gpsSub;
 
   Future<void> load() async {
     _routes = await _repo.getAllRoutes();
@@ -45,7 +56,25 @@ class LiveSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void startSession() {
+  /// Switches between simulated and real-GPS sources. When picking real
+  /// GPS, asks the OS for permission so the UI can show the resulting
+  /// status before [startSession] is called.
+  Future<void> setSource(TrackingSource source) async {
+    _source = source;
+    if (source == TrackingSource.realGps) {
+      _permissionStatus = await LocationService.ensurePermission();
+      // Permission denied/disabled — fall back to simulated so the UI
+      // doesn't get stuck.
+      if (_permissionStatus != LocationPermissionStatus.granted) {
+        _source = TrackingSource.simulated;
+      }
+    } else {
+      _permissionStatus = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> startSession() async {
     final route = _selected;
     if (route == null) return;
     _tracker?.dispose();
@@ -54,12 +83,24 @@ class LiveSessionController extends ChangeNotifier {
       ..startSession();
     _stage = LiveSessionStage.running;
     notifyListeners();
+
+    if (_source == TrackingSource.realGps) {
+      _gpsSub = LocationService.positionStream().listen((p) {
+        _tracker?.ingestSimulatedPoint(p);
+        notifyListeners();
+      }, onError: (_) {
+        // Fall back to simulated so the user can still finish the run.
+        _source = TrackingSource.simulated;
+        notifyListeners();
+      });
+    }
   }
 
   void simulateOnePoint() {
     final t = _tracker;
     final route = _selected;
     if (t == null || route == null) return;
+    if (_source == TrackingSource.realGps) return;
     final base = DateTime.now();
     if (_autoScript.isEmpty) {
       _autoScript = t.buildAutoLapScript(startTime: base);
@@ -67,7 +108,6 @@ class LiveSessionController extends ChangeNotifier {
     }
     if (_autoIndex >= _autoScript.length) return;
     final original = _autoScript[_autoIndex];
-    // Re-stamp with current time so manual stepping shows realistic deltas.
     final point = TelemetryPoint(
       timestamp: base,
       location: original.location,
@@ -79,6 +119,7 @@ class LiveSessionController extends ChangeNotifier {
   }
 
   void toggleAutoSimulate() {
+    if (_source == TrackingSource.realGps) return;
     if (_autoSimulator != null) {
       _autoSimulator?.cancel();
       _autoSimulator = null;
@@ -114,6 +155,8 @@ class LiveSessionController extends ChangeNotifier {
   bool get isAutoSimulating => _autoSimulator != null;
 
   Future<SessionRun?> finishSession() async {
+    await _gpsSub?.cancel();
+    _gpsSub = null;
     _autoSimulator?.cancel();
     _autoSimulator = null;
     final t = _tracker;
@@ -143,6 +186,7 @@ class LiveSessionController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _gpsSub?.cancel();
     _autoSimulator?.cancel();
     _tracker?.removeListener(_onTrackerChange);
     _tracker?.dispose();

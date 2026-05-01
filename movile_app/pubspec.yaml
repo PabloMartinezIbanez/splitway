@@ -13,6 +13,7 @@ dependencies:
     sdk: flutter
   splitway_core:
     path: ../packages/splitway_core
+  geolocator: ^14.0.0
   go_router: ^15.0.0
   intl: ^0.20.0
   mapbox_maps_flutter: ^2.10.0
