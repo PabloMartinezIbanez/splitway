@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mbx;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/app.dart';
 import 'src/config/app_config.dart';
@@ -15,6 +16,14 @@ Future<void> main() async {
   final config = await AppConfig.load();
   if (config.hasMapbox) {
     mbx.MapboxOptions.setAccessToken(config.mapboxToken!);
+  }
+
+  // Initialize Supabase if credentials are available.
+  if (config.hasSupabase) {
+    await Supabase.initialize(
+      url: config.supabaseUrl!,
+      anonKey: config.supabaseAnonKey!,
+    );
   }
 
   final database = await SplitwayLocalDatabase.open();

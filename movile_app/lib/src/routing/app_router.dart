@@ -8,14 +8,19 @@ import '../features/history/history_screen.dart';
 import '../features/home/home_shell.dart';
 import '../features/session/live_session_controller.dart';
 import '../features/session/live_session_screen.dart';
+import '../services/sync/sync_service.dart';
 
 class AppRouter {
-  AppRouter({required this.repository, required this.config})
-      : _editorController = RouteEditorController(repository),
+  AppRouter({
+    required this.repository,
+    required this.config,
+    this.syncService,
+  })  : _editorController = RouteEditorController(repository),
         _sessionController = LiveSessionController(repository);
 
   final LocalDraftRepository repository;
   final AppConfig config;
+  final SyncService? syncService;
   final RouteEditorController _editorController;
   final LiveSessionController _sessionController;
 

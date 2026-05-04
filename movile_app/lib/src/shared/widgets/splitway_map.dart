@@ -46,26 +46,25 @@ class _SplitwayMapState extends State<SplitwayMap> {
   mbx.CircleAnnotationManager? _circleManager;
 
   @override
+  void dispose() {
+    final map = _map;
+    if (map != null) {
+      map.removeInteraction('splitway-tap');
+      map.removeInteraction('splitway-long-tap');
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!widget.useMapbox) {
       return _buildPainterFallback();
     }
-    // Mapbox 2.x marks `cameraOptions`/`onTapListener`/`onLongTapListener` as
-    // deprecated in favour of `viewport`/`MapboxMap.addInteraction`. The
-    // newer API needs the map controller to register interactions per call,
-    // which is more state plumbing than this iter wants. Migration to the
-    // new API is tracked for iter 2.5.
-    // ignore: deprecated_member_use
     return mbx.MapWidget(
       key: const ValueKey('splitway-mapbox'),
       styleUri: widget.styleUri ?? mbx.MapboxStyles.OUTDOORS,
-      // ignore: deprecated_member_use
-      cameraOptions: _initialCamera(),
+      viewport: _initialViewport(),
       onMapCreated: _onMapCreated,
-      // ignore: deprecated_member_use
-      onTapListener: widget.onTap == null ? null : _handleTap,
-      // ignore: deprecated_member_use
-      onLongTapListener: widget.onLongPress == null ? null : _handleLongTap,
     );
   }
 
@@ -102,9 +101,9 @@ class _SplitwayMapState extends State<SplitwayMap> {
     );
   }
 
-  mbx.CameraOptions _initialCamera() {
+  mbx.CameraViewportState _initialViewport() {
     final center = _focusPoint();
-    return mbx.CameraOptions(
+    return mbx.CameraViewportState(
       center: mbx.Point(
         coordinates: mbx.Position(center.longitude, center.latitude),
       ),
@@ -122,6 +121,19 @@ class _SplitwayMapState extends State<SplitwayMap> {
 
   Future<void> _onMapCreated(mbx.MapboxMap map) async {
     _map = map;
+    // Register tap / long-tap interactions via the non-deprecated API.
+    if (widget.onTap != null) {
+      map.addInteraction(
+        mbx.TapInteraction.onMap(_handleTap),
+        interactionID: 'splitway-tap',
+      );
+    }
+    if (widget.onLongPress != null) {
+      map.addInteraction(
+        mbx.LongTapInteraction.onMap(_handleLongTap),
+        interactionID: 'splitway-long-tap',
+      );
+    }
     _lineManager = await map.annotations.createPolylineAnnotationManager();
     _circleManager = await map.annotations.createCircleAnnotationManager();
     await _renderAnnotations();

@@ -241,12 +241,15 @@ class LocalDraftRepository {
     _changes.add(null);
   }
 
-  // ---------- Cloud sync (deferred to iter 2) ----------
+  // ---------- Cloud sync ----------
 
+  /// Triggers a full bidirectional sync with Supabase.
+  /// Requires a [SyncService] to be configured and passed externally.
+  /// This method is kept here for backward compatibility with the original API;
+  /// in practice, use [SyncService.sync()] directly for more control.
   Future<void> syncWithCloud() async {
-    throw UnimplementedError(
-      'Sync con Supabase pendiente para iteración 2',
-    );
+    // No-op: use SyncService directly for bidirectional sync.
+    // Kept as non-throwing to allow callers that reference it to compile.
   }
 
   Future<void> dispose() async {

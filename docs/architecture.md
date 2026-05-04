@@ -1,4 +1,4 @@
-# Arquitectura — Splitway (Iteración 1)
+# Arquitectura — Splitway (Iteración 3)
 
 Este documento es un resumen breve. La especificación completa de
 funcionamiento está en
@@ -17,20 +17,24 @@ funcionamiento está en
 ┌─────────────▼──────────────────────────────────────────────┐
 │ Lógica (Controllers + Servicios)                           │
 │  • RouteEditorController                                   │
-│  • LiveSessionController                                   │
+│  • LiveSessionController  (simulated + real GPS)           │
 │  • LiveTrackingController  (envuelve el motor)             │
+│  • SyncService  (bidirectional SQLite ↔ Supabase)          │
 └─────────────┬──────────────────────────────────────────────┘
               │ async repository API
 ┌─────────────▼──────────────────────────────────────────────┐
 │ Datos                                                      │
-│  • LocalDraftRepository (CRUD + sync stub)                 │
+│  • LocalDraftRepository (CRUD local, SQLite)               │
+│  • SupabaseRepository (CRUD remoto, Postgres + RLS)        │
 │  • SplitwayLocalDatabase (sqflite)                         │
 └─────────────┬──────────────────────────────────────────────┘
               │
 ┌─────────────▼──────────────────────────────────────────────┐
 │ Integraciones                                              │
 │  • SQLite local (sqflite)            ← fuente de verdad    │
-│  • Mapbox / Geolocator / Supabase   ← stub en iter 1       │
+│  • Supabase (supabase_flutter)       ← backup + multi-device│
+│  • Mapbox (mapbox_maps_flutter)      ← mapa + routing      │
+│  • Geolocator                        ← GPS real            │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -60,6 +64,30 @@ Cuando se finaliza, el motor emite `TrackingFinished`, devuelve un
 `SessionRun` y el `LiveSessionController` lo persiste vía
 `LocalDraftRepository.saveSessionRun(...)`.
 
+## Sincronización con Supabase
+
+```
+SQLite (local)                    Supabase (cloud)
+     │                                  │
+     └───── SyncService.sync() ─────────┘
+              ├─ Push: rutas/sesiones locales nuevas o más recientes
+              └─ Pull: rutas/sesiones remotas nuevas o más recientes
+```
+
+Estrategia **last-write-wins** basada en `updated_at`. La sincronización
+es manual (el usuario la lanza desde la UI). La app funciona completamente
+offline; Supabase es opcional para backup y multi-dispositivo.
+
+RLS protege todas las tablas: cada fila tiene `owner_id = auth.uid()` y
+sólo el propietario puede leer/escribir sus datos.
+
+## Edge Function: mapbox-routing
+
+La Edge Function `mapbox-routing` proxea llamadas al Mapbox Map Matching API
+para que el token secreto de Mapbox nunca se exponga en el cliente. El
+cliente envía coordenadas GPS crudas y recibe la geometría snapped a
+carreteras reales.
+
 ## Detección de cruces (gates)
 
 Una "gate" es un segmento perpendicular a la ruta definido por dos `GeoPoint`
@@ -70,21 +98,22 @@ para evitar disparos espurios bajo ruido GPS — sólo cuenta el cruce estricto.
 
 ## Decisiones clave
 
-1. **Offline-first**: SQLite es la fuente de verdad. Supabase será una copia
-   de seguridad opcional (iter 2).
+1. **Offline-first**: SQLite es la fuente de verdad. Supabase es una copia
+   de seguridad opcional y canal de sincronización multi-dispositivo.
 2. **Core separado**: `splitway_core` no depende de Flutter. Esto permite
    testear el motor en CI puro y reutilizarlo en otros contextos.
 3. **State management ligero**: `ChangeNotifier` + listeners nativos. No se
-   añade `provider`, `riverpod` ni `bloc` para iter 1 — la app es pequeña.
-4. **Mapa placeholder**: en iter 1 las pantallas usan `CustomPainter` para
-   pintar la ruta. En iter 2 se reemplaza por `mapbox_maps_flutter`.
-5. **Simulación de GPS**: `LiveSessionController` incluye un modo
-   simulación que avanza por puntos sintéticos, así el motor se valida
-   end-to-end sin necesidad de moverse físicamente. En iter 2 se conectará
-   `Geolocator.getPositionStream()` detrás del flag
-   `AppConfig.realGpsEnabled`.
+   añade `provider`, `riverpod` ni `bloc` — la app es pequeña.
+4. **Mapa condicional**: `SplitwayMap` usa Mapbox real si hay token, o
+   `CustomPainter` como fallback (permite tests sin SDK nativo).
+5. **Dual-source tracking**: `LiveSessionController` soporta modo simulación
+   (puntos sintéticos) y GPS real (`Geolocator.getPositionStream()`) con
+   fallback automático si se deniegan permisos.
+6. **Mapbox APIs modernas**: `CameraViewportState` para la cámara inicial,
+   `TapInteraction.onMap` / `LongTapInteraction.onMap` para gestos
+   (migrado desde las APIs deprecadas en iter 3).
 
-## Tablas SQLite
+## Tablas (SQLite local + Supabase Postgres)
 
 | Tabla              | Función                                                  |
 | ------------------ | -------------------------------------------------------- |
@@ -93,5 +122,14 @@ para evitar disparos espurios bajo ruido GPS — sólo cuenta el cruce estricto.
 | `session_runs`     | Cada grabación: estado, vueltas, sectores, métricas.     |
 | `telemetry_points` | Puntos GPS individuales asociados a una sesión.          |
 
-La estructura es paralela al `supabase/migrations/20260429000000_initial_schema.sql`
-para que la sincronización iter 2 sea un mapeo casi 1-a-1.
+La estructura local y la remota son paralelas. La migración SQL
+`20260504000000_add_owner_rls.sql` añade `owner_id`, `updated_at` y
+políticas RLS sobre el esquema base.
+
+## Tests
+
+- **Unit tests** (`packages/splitway_core`): geometría + motor → 13 tests.
+- **Widget tests** (`movile_app/test/`): DB + seed, repo round-trip, render
+  de pantallas individuales → 4 tests.
+- **Integration tests** (`movile_app/integration_test/`): flujos end-to-end
+  en dispositivo real (navegar tabs, simular sesión, verificar historial).
