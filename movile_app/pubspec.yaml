@@ -34,5 +34,5 @@ flutter:
   uses-material-design: true
   # env/local.json is gitignored. Copy env/local.example.json to env/local.json
   # and uncomment the entry below to bundle real Mapbox/Supabase credentials.
-  # assets:
-  #   - env/local.json
+  assets:
+    - env/local.json
