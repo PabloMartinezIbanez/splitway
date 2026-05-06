@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
 
 import '../../config/app_config.dart';
+import '../../routing/app_router.dart';
+import '../../services/auth/auth_service.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/splitway_map.dart';
+import '../home/home_shell.dart';
 import 'route_editor_controller.dart';
 
 class RouteEditorScreen extends StatefulWidget {
@@ -12,10 +15,12 @@ class RouteEditorScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.config,
+    this.authService,
   });
 
   final RouteEditorController controller;
   final AppConfig config;
+  final AuthService? authService;
 
   @override
   State<RouteEditorScreen> createState() => _RouteEditorScreenState();
@@ -38,6 +43,14 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   void _onChange() => setState(() {});
 
   Future<void> _onCreateRoute() async {
+    // Auth guard: require login before creating a new route.
+    final allowed = await requireAuth(
+      context,
+      widget.authService,
+      message: 'Inicia sesión para crear una ruta',
+    );
+    if (!allowed || !mounted) return;
+
     final result = await showDialog<_NewRouteResult>(
       context: context,
       builder: (_) => const _NewRouteDialog(),
@@ -84,6 +97,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     }
     return Scaffold(
       appBar: AppBar(
+        leading: buildDrawerLeading(context, widget.authService),
         title: const Text('Editor de rutas'),
         actions: [
           IconButton(

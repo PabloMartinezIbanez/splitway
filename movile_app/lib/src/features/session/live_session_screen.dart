@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
 
 import '../../config/app_config.dart';
+import '../../routing/app_router.dart';
+import '../../services/auth/auth_service.dart';
 import '../../services/tracking/live_tracking_controller.dart';
 import '../../services/tracking/location_service.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/splitway_map.dart';
+import '../home/home_shell.dart';
 import 'live_session_controller.dart';
 
 class LiveSessionScreen extends StatefulWidget {
@@ -14,10 +17,12 @@ class LiveSessionScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.config,
+    this.authService,
   });
 
   final LiveSessionController controller;
   final AppConfig config;
+  final AuthService? authService;
 
   @override
   State<LiveSessionScreen> createState() => _LiveSessionScreenState();
@@ -43,7 +48,10 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
   Widget build(BuildContext context) {
     final ctrl = widget.controller;
     return Scaffold(
-      appBar: AppBar(title: const Text('Sesión en vivo')),
+      appBar: AppBar(
+        leading: buildDrawerLeading(context, widget.authService),
+        title: const Text('Sesión en vivo'),
+      ),
       body: switch (ctrl.stage) {
         LiveSessionStage.selecting => _buildEmpty(),
         LiveSessionStage.ready => _buildReady(ctrl),
@@ -122,7 +130,14 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           FilledButton.icon(
             onPressed: ctrl.selected == null
                 ? null
-                : () {
+                : () async {
+                    // Auth guard: require login before recording.
+                    final allowed = await requireAuth(
+                      context,
+                      widget.authService,
+                      message: 'Inicia sesión para grabar una sesión',
+                    );
+                    if (!allowed || !mounted) return;
                     // ignore: discarded_futures
                     ctrl.startSession();
                   },

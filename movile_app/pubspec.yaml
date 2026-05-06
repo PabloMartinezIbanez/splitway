@@ -1,9 +1,9 @@
 name: splitway_mobile
-description: "Splitway — cronómetro inteligente para rutas. Iter 3: Supabase sync + Mapbox migration + integration tests."
+description: "Splitway — cronómetro inteligente para rutas. Iter 4: Auth + UI/UX."
 
 publish_to: 'none'
 
-version: 0.3.0+1
+version: 0.4.0+1
 
 environment:
   sdk: ^3.5.0
@@ -19,6 +19,8 @@ dependencies:
   mapbox_maps_flutter: ^2.10.0
   sqflite: ^2.4.0
   supabase_flutter: ^2.8.0
+  google_sign_in: ^6.2.0
+  connectivity_plus: ^6.0.0
   path: ^1.9.0
   path_provider: ^2.1.0
 
