@@ -75,32 +75,38 @@ class LiveTrackingController extends ChangeNotifier {
     int maxPathPoints = 50,
   }) {
     final path = route.path;
-    if (path.length < 2) return const [];
+    if (path.length < 3) return const [];
 
     // Sample the path so the script stays short even for snapped routes.
     final sampled = _samplePath(path, maxPathPoints);
 
+    // Gates in Splitway are auto-generated perpendicular to path[0]→path[1].
+    // Therefore the forward path bearing IS the direction perpendicular to the gate,
+    // and placing pBefore 20 m behind gate.center along the reverse bearing
+    // guarantees that pBefore→sampled[1] will always cross the gate.
+    //
     // Compute a point 20 m BEFORE the gate (guaranteed to be outside).
-    // path[0] is the gate centre; path[1] is the first point inside the circuit.
+    // sampled[0] is the gate centre; sampled[1] is the first point inside the circuit.
     final fwdBearing = sampled.first.bearingTo(sampled[1]);
     final backBearing = (fwdBearing + 180) % 360;
     final pBefore = route.startFinishGate.center.destinationPoint(backBearing, 20);
 
     // Build point list: entry approach + N lap iterations.
-    // Each iteration: [path[1]..path[-2], pBefore]
-    //   - path[1] is inside (past the gate).
-    //   - path[-2] is the last point before the gate centre (on the closing approach).
+    // Each iteration: [sampled[1]..sampled[-2], pBefore]
+    //   - sampled[1] is inside (past the gate).
+    //   - sampled[-2] is the last point before the gate centre (on the closing approach).
     //   - pBefore finishes outside, crossing the gate to close that lap.
     final geo = <GeoPoint>[];
     geo.add(pBefore); // entry: start outside so pBefore→sampled[1] opens lap 1.
 
+    // Walk the circuit, skip index 0 (gate centre, on the gate line).
+    // For closed circuits skip the last point too (= index 0, same issue).
+    final isClosedCircuit = route.isClosed;
+    final circuitPoints = isClosedCircuit
+        ? sampled.skip(1).take(sampled.length - 2).toList() // skip first & last
+        : sampled.skip(1).toList(); // skip only first
+
     for (int lap = 0; lap < lapCount; lap++) {
-      // Walk the circuit, skip index 0 (gate centre, on the gate line).
-      // For closed circuits skip the last point too (= index 0, same issue).
-      final isClosedCircuit = sampled.first == sampled.last;
-      final circuitPoints = isClosedCircuit
-          ? sampled.skip(1).take(sampled.length - 2).toList() // skip first & last
-          : sampled.skip(1).toList(); // skip only first
       geo.addAll(circuitPoints);
       // Close the lap: go back outside so the gate is crossed.
       geo.add(pBefore);
@@ -120,6 +126,7 @@ class LiveTrackingController extends ChangeNotifier {
   /// Evenly samples [path] down to at most [max] points, always keeping
   /// the first and last point.
   static List<GeoPoint> _samplePath(List<GeoPoint> path, int max) {
+    if (max <= 1) return path.isNotEmpty ? [path.first] : const [];
     if (path.length <= max) return List.of(path);
     final result = <GeoPoint>[];
     final step = (path.length - 1) / (max - 1);
