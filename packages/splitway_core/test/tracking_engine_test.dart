@@ -139,8 +139,8 @@ void main() {
   test('gate cooldown: two crossings 500 ms apart count as one', () async {
     // Minimal route: start gate at (0,0), path goes north briefly.
     final gate = GateDefinition(
-      left:  GeoPoint(latitude: 0.0, longitude: -0.0001),
-      right: GeoPoint(latitude: 0.0, longitude:  0.0001),
+      left: GeoPoint(latitude: 0.0, longitude: -0.0001),
+      right: GeoPoint(latitude: 0.0, longitude: 0.0001),
     );
     final route = RouteTemplate(
       id: 'r1', name: 'test',
@@ -190,6 +190,58 @@ void main() {
     // Both back-crossings were within the 3-second cooldown window,
     // so no lap should have been closed.
     expect(events.whereType<LapClosed>().length, 0);
-    engine.dispose();
+    await engine.dispose();
+  });
+
+  test('gate cooldown: crossing after 3+ s is accepted and closes lap', () async {
+    final gate = GateDefinition(
+      left: GeoPoint(latitude: 0.0, longitude: -0.0001),
+      right: GeoPoint(latitude: 0.0, longitude: 0.0001),
+    );
+    final route = RouteTemplate(
+      id: 'r1',
+      name: 'test',
+      path: const [
+        GeoPoint(latitude: 0.0, longitude: 0.0),
+        GeoPoint(latitude: 0.0005, longitude: 0.0),
+        GeoPoint(latitude: 0.001, longitude: 0.0),
+      ],
+      startFinishGate: gate,
+      sectors: const [],
+      difficulty: RouteDifficulty.easy,
+      createdAt: DateTime(2026),
+    );
+
+    final now = DateTime(2026, 1, 1, 12, 0, 0);
+    var tick = now;
+    final engine = TrackingEngine(
+      route: route,
+      sessionId: 's1',
+      clock: () => tick,
+    )..start();
+
+    final events = <TrackingEvent>[];
+    engine.events.listen(events.add);
+
+    final pBefore = GeoPoint(latitude: -0.0002, longitude: 0.0);
+    final pInside = GeoPoint(latitude: 0.0002, longitude: 0.0);
+
+    // First crossing — opens lap 1.
+    tick = now;
+    engine.ingest(TelemetryPoint(timestamp: tick, location: pBefore, speedMps: 10));
+    tick = now.add(const Duration(milliseconds: 100));
+    engine.ingest(TelemetryPoint(timestamp: tick, location: pInside, speedMps: 10));
+
+    // Second crossing 3.5 s later — past the cooldown, should close lap 1.
+    tick = now.add(const Duration(milliseconds: 3500));
+    engine.ingest(TelemetryPoint(timestamp: tick, location: pBefore, speedMps: 10));
+    tick = now.add(const Duration(milliseconds: 3600));
+    engine.ingest(TelemetryPoint(timestamp: tick, location: pInside, speedMps: 10));
+
+    await Future<void>.delayed(Duration.zero); // flush async stream
+
+    expect(events.whereType<TrackingStarted>().length, 1);
+    expect(events.whereType<LapClosed>().length, 1);
+    await engine.dispose();
   });
 }

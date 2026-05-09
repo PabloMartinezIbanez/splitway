@@ -105,6 +105,7 @@ class TrackingEngine {
   void start() {
     if (_status != TrackingStatus.idle) return;
     _status = TrackingStatus.awaitingStart;
+    _lastCrossingAt = null;   // ensure cooldown does not carry over on engine reuse
   }
 
   void ingest(TelemetryPoint point) {
@@ -174,6 +175,7 @@ class TrackingEngine {
   void _onStartFinishCrossed(DateTime at) {
     // Cooldown: ignore crossings that arrive too soon after the previous one.
     final last = _lastCrossingAt;
+    // Covers both too-soon crossings and out-of-order timestamps (negative difference).
     if (last != null && at.difference(last) < _crossingCooldown) return;
     _lastCrossingAt = at;
 
