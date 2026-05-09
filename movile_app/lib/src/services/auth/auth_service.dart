@@ -130,13 +130,22 @@ class AuthService extends ChangeNotifier {
         email: email,
         password: password,
       );
-      // Supabase creates the user but session is null when email confirmation
-      // is required. This is a success path, not an error.
+      // When email enumeration protection is ON, Supabase returns
+      // session=null for BOTH new users and duplicate emails.
+      // The only way to tell them apart: duplicate signups get
+      // identities=[] (empty list), new users get identities=[{...}].
       if (response.session == null) {
+        final isDuplicate = response.user?.identities?.isEmpty ?? false;
+        if (isDuplicate) {
+          _error = 'Este email ya está registrado. Inicia sesión.';
+          _loading = false;
+          notifyListeners();
+          return false;
+        }
         _pendingEmailConfirmation = true;
         _loading = false;
         notifyListeners();
-        return false; // false = no session yet, UI should show confirmation dialog
+        return false; // new user, session pending email confirmation
       }
       _loading = false;
       notifyListeners();
