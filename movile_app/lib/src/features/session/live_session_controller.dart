@@ -41,6 +41,12 @@ class LiveSessionController extends ChangeNotifier {
   int _autoIndex = 0;
   List<TelemetryPoint> _autoScript = const [];
 
+  int _simSpeedMultiplier = 1;
+  int get simSpeedMultiplier => _simSpeedMultiplier;
+
+  Duration get _simInterval =>
+      Duration(milliseconds: 600 ~/ _simSpeedMultiplier.clamp(1, 20));
+
   StreamSubscription<TelemetryPoint>? _gpsSub;
 
   Future<void> load() async {
@@ -132,7 +138,14 @@ class LiveSessionController extends ChangeNotifier {
       _autoScript = t.buildAutoLapScript(startTime: DateTime.now());
       _autoIndex = 0;
     }
-    _autoSimulator = Timer.periodic(const Duration(milliseconds: 600), (_) {
+    _startAutoTimer();
+    notifyListeners();
+  }
+
+  void _startAutoTimer() {
+    final t = _tracker;
+    if (t == null) return;
+    _autoSimulator = Timer.periodic(_simInterval, (_) {
       if (_autoIndex >= _autoScript.length) {
         _autoSimulator?.cancel();
         _autoSimulator = null;
@@ -149,10 +162,27 @@ class LiveSessionController extends ChangeNotifier {
       _autoIndex++;
       notifyListeners();
     });
+  }
+
+  /// Sets the simulation playback speed multiplier (1, 5, or 10).
+  /// If auto-simulate is currently running it is restarted at the new rate.
+  void setSimSpeedMultiplier(int multiplier) {
+    _simSpeedMultiplier = multiplier.clamp(1, 20);
+    if (_autoSimulator != null) {
+      _autoSimulator?.cancel();
+      _autoSimulator = null;
+      _startAutoTimer();
+    }
     notifyListeners();
   }
 
   bool get isAutoSimulating => _autoSimulator != null;
+
+  /// Current position in the auto-simulation script (number of points sent).
+  int get simProgress => _autoIndex;
+
+  /// Total number of points in the current auto-simulation script.
+  int get simTotal => _autoScript.length;
 
   Future<SessionRun?> finishSession() async {
     await _gpsSub?.cancel();

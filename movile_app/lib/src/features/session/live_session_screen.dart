@@ -188,7 +188,28 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           const SizedBox(height: 8),
           _LastEventTile(snapshot: snapshot),
           const SizedBox(height: 12),
-          if (ctrl.source == TrackingSource.simulated)
+          if (ctrl.source == TrackingSource.simulated) ...[
+            // Progress bar (visible only while auto-simulating)
+            if (ctrl.isAutoSimulating && ctrl.simTotal > 0) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: ctrl.simProgress / ctrl.simTotal,
+                      minHeight: 6,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${ctrl.simProgress} / ${ctrl.simTotal}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+            ],
+            // Simulation buttons
             Row(
               children: [
                 Expanded(
@@ -210,8 +231,29 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
                   ),
                 ),
               ],
-            )
-          else
+            ),
+            const SizedBox(height: 8),
+            // Speed selector
+            Row(
+              children: [
+                Text('Velocidad:',
+                    style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SegmentedButton<int>(
+                    segments: const [
+                      ButtonSegment(value: 1, label: Text('1×')),
+                      ButtonSegment(value: 5, label: Text('5×')),
+                      ButtonSegment(value: 10, label: Text('10×')),
+                    ],
+                    selected: {ctrl.simSpeedMultiplier},
+                    onSelectionChanged: (s) =>
+                        ctrl.setSimSpeedMultiplier(s.first),
+                  ),
+                ),
+              ],
+            ),
+          ] else
             _GpsStatusTile(
               tracker: tracker,
               telemetryCount: tracker.ingested.length,
