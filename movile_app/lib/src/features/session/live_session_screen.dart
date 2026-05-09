@@ -33,12 +33,14 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
   void initState() {
     super.initState();
     widget.controller.addListener(_onChange);
+    widget.authService?.addListener(_onChange);
     widget.controller.load();
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_onChange);
+    widget.authService?.removeListener(_onChange);
     super.dispose();
   }
 

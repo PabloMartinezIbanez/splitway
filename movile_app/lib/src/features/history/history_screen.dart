@@ -34,8 +34,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     widget.repository.changes.listen((_) => _load());
+    widget.authService?.addListener(_onAuthChanged);
     _load();
   }
+
+  @override
+  void dispose() {
+    widget.authService?.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() => setState(() {});
 
   Future<void> _load() async {
     setState(() => _loading = true);
