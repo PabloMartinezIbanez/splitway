@@ -76,8 +76,13 @@ class TrackingEngine {
   double _lapDistanceAccumulator = 0;
   double _sectorDistanceAccumulator = 0;
   Duration? _bestLap;
+  DateTime? _lastCrossingAt;
   String? _lastCrossedSectorId;
   Duration? _lastSectorTime;
+
+  /// Minimum time between two recognised start/finish crossings.
+  /// Prevents double-counting from GPS noise or rapid simulation steps.
+  static const _crossingCooldown = Duration(seconds: 3);
 
   TrackingSnapshot get snapshot {
     final lapElapsed = _lapStartedAt == null
@@ -167,6 +172,11 @@ class TrackingEngine {
   }
 
   void _onStartFinishCrossed(DateTime at) {
+    // Cooldown: ignore crossings that arrive too soon after the previous one.
+    final last = _lastCrossingAt;
+    if (last != null && at.difference(last) < _crossingCooldown) return;
+    _lastCrossingAt = at;
+
     if (_status == TrackingStatus.awaitingStart) {
       _status = TrackingStatus.inLap;
       _currentLap = 1;
