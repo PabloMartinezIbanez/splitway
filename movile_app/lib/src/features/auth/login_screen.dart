@@ -49,29 +49,25 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// Only used to rebuild the UI (error messages, loading spinner).
+  /// Navigation is handled directly in the button callbacks to avoid
+  /// GoRouter stack conflicts when pop() fires from a listener.
   void _onAuthChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _popSuccess() {
     if (!mounted) return;
-    // If user just logged in, navigate away.
-    if (widget.authService.isLoggedIn) {
-      if (widget.redirect != null) {
-        // Replace current route with the redirect target.
-        // Use a post-frame callback so the listener doesn't fire mid-build.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            Navigator.of(context).pop(true); // signal success
-          }
-        });
-      } else {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) Navigator.of(context).pop(true);
-        });
-      }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(true);
     }
-    setState(() {});
+    // If this screen is a GoRouter root route there is nothing to pop —
+    // the AuthService listener in app.dart will rebuild the tree instead.
   }
 
   Future<void> _handleGoogleSignIn() async {
-    await widget.authService.signInWithGoogle();
+    final success = await widget.authService.signInWithGoogle();
+    if (success) _popSuccess();
   }
 
   Future<void> _handleEmailSubmit() async {
@@ -79,15 +75,19 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
 
+    final bool success;
     if (_isSignUp) {
-      await widget.authService.signUpWithEmail(email, password);
+      success = await widget.authService.signUpWithEmail(email, password);
     } else {
-      await widget.authService.signInWithEmail(email, password);
+      success = await widget.authService.signInWithEmail(email, password);
     }
+    if (success) _popSuccess();
   }
 
   void _handleSkip() {
-    Navigator.of(context).pop(false); // signal skipped
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(false);
+    }
   }
 
   @override
