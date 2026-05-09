@@ -115,7 +115,7 @@ class LiveSessionController extends ChangeNotifier {
     if (_autoIndex >= _autoScript.length) return;
     final original = _autoScript[_autoIndex];
     final point = TelemetryPoint(
-      timestamp: base,
+      timestamp: original.timestamp, // use script time so engine cooldown is speed-independent
       location: original.location,
       speedMps: original.speedMps,
     );
@@ -154,7 +154,7 @@ class LiveSessionController extends ChangeNotifier {
       }
       final scripted = _autoScript[_autoIndex];
       final point = TelemetryPoint(
-        timestamp: DateTime.now(),
+        timestamp: scripted.timestamp, // use script time so engine cooldown is speed-independent
         location: scripted.location,
         speedMps: scripted.speedMps,
       );

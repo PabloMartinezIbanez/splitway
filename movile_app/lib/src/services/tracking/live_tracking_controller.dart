@@ -79,6 +79,7 @@ class LiveTrackingController extends ChangeNotifier {
 
     // Sample the path so the script stays short even for snapped routes.
     final sampled = _samplePath(path, maxPathPoints);
+    if (sampled.length < 2) return const []; // guard: _samplePath result too short
 
     // Gates in Splitway are auto-generated perpendicular to path[0]→path[1].
     // Therefore the forward path bearing IS the direction perpendicular to the gate,
