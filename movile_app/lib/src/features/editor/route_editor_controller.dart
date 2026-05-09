@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:splitway_core/splitway_core.dart';
 
 import '../../data/repositories/local_draft_repository.dart';
+import '../../services/routing/routing_service.dart';
 
 /// Which kind of input the next map tap should produce while drawing a
 /// new route in the editor.
@@ -17,12 +18,20 @@ enum DrawInputMode {
 }
 
 class RouteEditorController extends ChangeNotifier {
-  RouteEditorController(this._repo);
+  RouteEditorController(this._repo, {this.routingService});
 
   final LocalDraftRepository _repo;
 
+  /// Optional: when present, [saveDraft] will snap the drawn path to
+  /// actual roads using the Mapbox Directions API before persisting.
+  final RoutingService? routingService;
+
   bool _loading = true;
   bool get loading => _loading;
+
+  /// True while [saveDraft] is waiting for the routing API response.
+  bool _snapping = false;
+  bool get snapping => _snapping;
 
   List<RouteTemplate> _routes = const [];
   List<RouteTemplate> get routes => _routes;
@@ -160,6 +169,24 @@ class RouteEditorController extends ChangeNotifier {
 
   Future<RouteTemplate?> saveDraft() async {
     if (!draftCanSave) return null;
+
+    // Snap the drawn path to actual roads if the routing service is available.
+    List<GeoPoint> finalPath = List.of(_draftPath);
+    if (routingService != null && _draftPath.length >= 2) {
+      _snapping = true;
+      notifyListeners();
+      final snapped = await routingService!.snapToRoads(_draftPath);
+      _snapping = false;
+      notifyListeners();
+      if (snapped != null && snapped.length >= 2) {
+        finalPath = snapped;
+        debugPrint(
+            'RoutingService: snapped ${_draftPath.length} waypoints → ${snapped.length} road points');
+      } else {
+        debugPrint('RoutingService: snapping failed, using raw waypoints');
+      }
+    }
+
     final id = 'route-${DateTime.now().microsecondsSinceEpoch}';
     final route = RouteTemplate(
       id: id,
@@ -167,7 +194,7 @@ class RouteEditorController extends ChangeNotifier {
       description: _draftDescription?.trim().isEmpty ?? true
           ? null
           : _draftDescription!.trim(),
-      path: List.unmodifiable(_draftPath),
+      path: List.unmodifiable(finalPath),
       startFinishGate: _draftStartGate!,
       sectors: [
         for (var i = 0; i < _draftSectorGates.length; i++)

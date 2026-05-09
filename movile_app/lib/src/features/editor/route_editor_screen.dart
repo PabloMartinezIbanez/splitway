@@ -280,20 +280,32 @@ class _DrawingView extends StatelessWidget {
           },
         ),
         actions: [
-          TextButton(
-            onPressed: controller.draftCanSave
-                ? () async {
-                    final saved = await controller.saveDraft();
-                    if (!context.mounted) return;
-                    if (saved != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Guardada "${saved.name}"')),
-                      );
+          if (controller.snapping)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            TextButton(
+              onPressed: controller.draftCanSave
+                  ? () async {
+                      final saved = await controller.saveDraft();
+                      if (!context.mounted) return;
+                      if (saved != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Guardada "${saved.name}"'),
+                          ),
+                        );
+                      }
                     }
-                  }
-                : null,
-            child: const Text('Guardar'),
-          ),
+                  : null,
+              child: const Text('Guardar'),
+            ),
         ],
       ),
       body: Column(

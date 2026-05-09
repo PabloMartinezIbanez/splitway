@@ -11,6 +11,7 @@ import '../features/home/home_shell.dart';
 import '../features/session/live_session_controller.dart';
 import '../features/session/live_session_screen.dart';
 import '../services/auth/auth_service.dart';
+import '../services/routing/routing_service.dart';
 import '../services/sync/sync_service.dart';
 
 class AppRouter {
@@ -19,7 +20,12 @@ class AppRouter {
     required this.config,
     this.authService,
     this.syncService,
-  })  : _editorController = RouteEditorController(repository),
+  })  : _editorController = RouteEditorController(
+          repository,
+          routingService: config.hasMapbox
+              ? RoutingService(mapboxToken: config.mapboxToken!)
+              : null,
+        ),
         _sessionController = LiveSessionController(repository);
 
   final LocalDraftRepository repository;
