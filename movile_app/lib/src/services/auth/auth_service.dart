@@ -25,6 +25,15 @@ class AuthService extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  /// True when the last sign-up succeeded but requires email confirmation.
+  /// The UI should show a "check your inbox" dialog and stay on the screen.
+  bool _pendingEmailConfirmation = false;
+  bool get pendingEmailConfirmation => _pendingEmailConfirmation;
+
+  void clearPendingConfirmation() {
+    _pendingEmailConfirmation = false;
+  }
+
   void _onAuthEvent(AuthState state) {
     debugPrint('AuthService: ${state.event}');
     _error = null;
@@ -121,12 +130,13 @@ class AuthService extends ChangeNotifier {
         email: email,
         password: password,
       );
-      // If email confirmation is required, user is created but session is null.
-      if (response.user == null) {
-        _error = 'Revisa tu email para confirmar la cuenta.';
+      // Supabase creates the user but session is null when email confirmation
+      // is required. This is a success path, not an error.
+      if (response.session == null) {
+        _pendingEmailConfirmation = true;
         _loading = false;
         notifyListeners();
-        return false;
+        return false; // false = no session yet, UI should show confirmation dialog
       }
       _loading = false;
       notifyListeners();

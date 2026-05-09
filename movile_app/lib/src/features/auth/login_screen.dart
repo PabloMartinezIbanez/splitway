@@ -78,10 +78,73 @@ class _LoginScreenState extends State<LoginScreen> {
     final bool success;
     if (_isSignUp) {
       success = await widget.authService.signUpWithEmail(email, password);
+      // Show "check your inbox" dialog if confirmation email was sent.
+      if (!success &&
+          widget.authService.pendingEmailConfirmation &&
+          mounted) {
+        widget.authService.clearPendingConfirmation();
+        await _showConfirmationEmailDialog(email);
+        return;
+      }
     } else {
       success = await widget.authService.signInWithEmail(email, password);
     }
     if (success) _popSuccess();
+  }
+
+  Future<void> _showConfirmationEmailDialog(String email) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3F2FD),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.mark_email_unread_outlined,
+                size: 34,
+                color: Color(0xFF1565C0),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '¡Revisa tu correo!',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Te hemos enviado un enlace de confirmación a\n$email\n\nHaz clic en el enlace para activar tu cuenta y poder iniciar sesión.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF616161),
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleSkip() {
