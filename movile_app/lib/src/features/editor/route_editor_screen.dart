@@ -400,10 +400,6 @@ class _DraftStatus extends StatelessWidget {
           ok: true,
           neutral: true,
         ),
-        if (controller.pendingGateLeft != null) ...[
-          const SizedBox(width: 8),
-          Text('Falta el 2º punto…', style: theme.textTheme.labelSmall),
-        ],
       ],
     );
   }

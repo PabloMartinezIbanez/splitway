@@ -185,7 +185,7 @@ class RouteEditorController extends ChangeNotifier {
         // Then schedule a snap to replace the straight segment with a road.
         _scheduleSnap();
       case DrawInputMode.sectorPoint:
-        if (_draftPath.isEmpty) return;
+        if (_draftPath.length < 2) return;  // Need at least 2 points to compute a bearing
         final idx = _nearestPathIndex(p);
         final snapped = _draftPath[idx];
         final gate = _gateAtPathIndex(idx);
