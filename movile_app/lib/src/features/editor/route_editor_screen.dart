@@ -242,7 +242,7 @@ class _DrawingView extends StatelessWidget {
 
   String _modeLabel(DrawInputMode mode) => switch (mode) {
         DrawInputMode.appendPath => 'Toca para añadir un punto al trazado',
-        DrawInputMode.sectorGate => 'Toca 2 veces para añadir un sector',
+        DrawInputMode.sectorPoint => 'Toca cerca de la ruta para añadir un sector',
       };
 
   @override
@@ -354,9 +354,9 @@ class _DrawingView extends StatelessWidget {
                     ),
                     ChoiceChip(
                       label: const Text('Añadir sector'),
-                      selected: controller.inputMode == DrawInputMode.sectorGate,
+                      selected: controller.inputMode == DrawInputMode.sectorPoint,
                       onSelected: (_) =>
-                          controller.setInputMode(DrawInputMode.sectorGate),
+                          controller.setInputMode(DrawInputMode.sectorPoint),
                     ),
                     OutlinedButton.icon(
                       onPressed: controller.draftPath.isEmpty
