@@ -125,34 +125,20 @@ class RouteMapPainter extends CustomPainter {
       canvas.drawPath(p, telPaint);
     }
 
-    // Start/finish gate.
-    _drawGate(canvas, project, route.startFinishGate,
-        const Color(0xFF2E7D32), 4);
-
-    // Sector gates.
-    for (final s in route.sectors) {
-      final isHighlight = s.id == highlightSectorId;
-      _drawGate(canvas, project, s.gate,
-          isHighlight ? const Color(0xFFFFB300) : const Color(0xFFC62828),
-          isHighlight ? 4 : 3);
+    // Sector boundary points (only when showSectors is active).
+    if (showSectors && route.sectors.isNotEmpty) {
+      for (var i = 0; i < route.sectors.length; i++) {
+        final center = route.sectors[i].gate.center;
+        final dot = Paint()
+          ..color = kSectorColors[(i + 1) % kSectorColors.length];
+        canvas.drawCircle(project(center), 6, dot);
+        final border = Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2;
+        canvas.drawCircle(project(center), 6, border);
+      }
     }
-  }
-
-  void _drawGate(
-    Canvas canvas,
-    Offset Function(GeoPoint) project,
-    GateDefinition gate,
-    Color color,
-    double width,
-  ) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = width
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(project(gate.left), project(gate.right), paint);
-    final dot = Paint()..color = color;
-    canvas.drawCircle(project(gate.left), 3, dot);
-    canvas.drawCircle(project(gate.right), 3, dot);
   }
 
   @override

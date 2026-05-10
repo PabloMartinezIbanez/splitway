@@ -252,17 +252,19 @@ class _SplitwayMapState extends State<SplitwayMap> {
           lineWidth: 4,
         ));
       }
-      await _drawGate(lineMgr, circleMgr, r.startFinishGate,
-          color: 0xFF2E7D32, width: 5);
-      for (final s in r.sectors) {
-        final highlight = s.id == widget.highlightSectorId;
-        await _drawGate(
-          lineMgr,
-          circleMgr,
-          s.gate,
-          color: highlight ? 0xFFFFB300 : 0xFFC62828,
-          width: highlight ? 5 : 4,
-        );
+      if (widget.showSectors && r.sectors.isNotEmpty) {
+        // Show sector boundary points as colored circles on the route.
+        for (var i = 0; i < r.sectors.length; i++) {
+          final center = r.sectors[i].gate.center;
+          await circleMgr.create(mbx.CircleAnnotationOptions(
+            geometry: mbx.Point(
+                coordinates: mbx.Position(center.longitude, center.latitude)),
+            circleColor: kSectorColors[(i + 1) % kSectorColors.length].value,
+            circleRadius: 8,
+            circleStrokeColor: 0xFFFFFFFF,
+            circleStrokeWidth: 2,
+          ));
+        }
       }
     }
 
@@ -303,28 +305,6 @@ class _SplitwayMapState extends State<SplitwayMap> {
         circleRadius: 8,
         circleStrokeColor: 0xFFFFFFFF,
         circleStrokeWidth: 2,
-      ));
-    }
-  }
-
-  Future<void> _drawGate(
-    mbx.PolylineAnnotationManager lines,
-    mbx.CircleAnnotationManager circles,
-    GateDefinition gate, {
-    required int color,
-    required double width,
-  }) async {
-    await lines.create(mbx.PolylineAnnotationOptions(
-      geometry: _toLineString([gate.left, gate.right]),
-      lineColor: color,
-      lineWidth: width,
-    ));
-    for (final p in [gate.left, gate.right]) {
-      await circles.create(mbx.CircleAnnotationOptions(
-        geometry: mbx.Point(
-            coordinates: mbx.Position(p.longitude, p.latitude)),
-        circleColor: color,
-        circleRadius: 5,
       ));
     }
   }
