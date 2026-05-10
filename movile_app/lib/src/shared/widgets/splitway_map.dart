@@ -133,7 +133,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
       center: mbx.Point(
         coordinates: mbx.Position(center.longitude, center.latitude),
       ),
-      zoom: 15,
+      zoom: 11,
     ));
     // Register tap / long-tap interactions via the non-deprecated API.
     if (widget.onTap != null) {
