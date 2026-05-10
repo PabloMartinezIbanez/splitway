@@ -17,7 +17,7 @@ class SplitwayMap extends StatefulWidget {
     this.route,
     this.telemetry = const [],
     this.draftPath = const [],
-    this.draftStartGate,
+    this.draftWaypoints = const [],
     this.draftSectorGates = const [],
     this.highlightSectorId,
     this.onTap,
@@ -28,8 +28,10 @@ class SplitwayMap extends StatefulWidget {
   final bool useMapbox;
   final RouteTemplate? route;
   final List<TelemetryPoint> telemetry;
+  /// Road-snapped polyline shown during drawing (may have thousands of points).
   final List<GeoPoint> draftPath;
-  final GateDefinition? draftStartGate;
+  /// User-tapped waypoints shown as circles during drawing (typically < 25).
+  final List<GeoPoint> draftWaypoints;
   final List<GateDefinition> draftSectorGates;
   final String? highlightSectorId;
   final ValueChanged<GeoPoint>? onTap;
@@ -63,7 +65,6 @@ class _SplitwayMapState extends State<SplitwayMap> {
     return mbx.MapWidget(
       key: const ValueKey('splitway-mapbox'),
       styleUri: widget.styleUri ?? mbx.MapboxStyles.OUTDOORS,
-      viewport: _initialViewport(),
       onMapCreated: _onMapCreated,
     );
   }
@@ -71,16 +72,20 @@ class _SplitwayMapState extends State<SplitwayMap> {
   @override
   void didUpdateWidget(covariant SplitwayMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.useMapbox &&
-        (oldWidget.route != widget.route ||
-            oldWidget.telemetry.length != widget.telemetry.length ||
-            oldWidget.draftPath.length != widget.draftPath.length ||
-            oldWidget.draftStartGate != widget.draftStartGate ||
-            oldWidget.draftSectorGates.length !=
-                widget.draftSectorGates.length ||
-            oldWidget.highlightSectorId != widget.highlightSectorId)) {
-      _renderAnnotations();
-    }
+    if (!widget.useMapbox) return;
+
+    final routeChanged = oldWidget.route != widget.route;
+    final annotationsChanged = routeChanged ||
+        oldWidget.telemetry.length != widget.telemetry.length ||
+        oldWidget.draftPath.length != widget.draftPath.length ||
+        oldWidget.draftWaypoints.length != widget.draftWaypoints.length ||
+        oldWidget.draftSectorGates.length != widget.draftSectorGates.length ||
+        oldWidget.highlightSectorId != widget.highlightSectorId;
+
+    if (annotationsChanged) _renderAnnotations();
+
+    // Fly to fit whenever the user selects a different route.
+    if (routeChanged) _flyToFitRoute();
   }
 
   Widget _buildPainterFallback() {
@@ -101,16 +106,6 @@ class _SplitwayMapState extends State<SplitwayMap> {
     );
   }
 
-  mbx.CameraViewportState _initialViewport() {
-    final center = _focusPoint();
-    return mbx.CameraViewportState(
-      center: mbx.Point(
-        coordinates: mbx.Position(center.longitude, center.latitude),
-      ),
-      zoom: 15,
-    );
-  }
-
   GeoPoint _focusPoint() {
     if (widget.route?.path.isNotEmpty ?? false) {
       return widget.route!.path.first;
@@ -121,6 +116,14 @@ class _SplitwayMapState extends State<SplitwayMap> {
 
   Future<void> _onMapCreated(mbx.MapboxMap map) async {
     _map = map;
+    // Position camera immediately (no animation) to avoid a blank-map flash.
+    final center = _focusPoint();
+    await map.setCamera(mbx.CameraOptions(
+      center: mbx.Point(
+        coordinates: mbx.Position(center.longitude, center.latitude),
+      ),
+      zoom: 15,
+    ));
     // Register tap / long-tap interactions via the non-deprecated API.
     if (widget.onTap != null) {
       map.addInteraction(
@@ -145,6 +148,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
     if (map == null) return;
     final geometry = _allGeometry();
     if (geometry.isEmpty) return;
+
     double minLat = geometry.first.latitude;
     double maxLat = minLat;
     double minLng = geometry.first.longitude;
@@ -155,22 +159,40 @@ class _SplitwayMapState extends State<SplitwayMap> {
       if (p.longitude < minLng) minLng = p.longitude;
       if (p.longitude > maxLng) maxLng = p.longitude;
     }
-    final centerLat = (minLat + maxLat) / 2;
-    final centerLng = (minLng + maxLng) / 2;
-    final spanLat = (maxLat - minLat).abs();
-    final spanLng = (maxLng - minLng).abs();
-    // Rough zoom estimate: each zoom step halves the visible span. At z=15
-    // a degree of latitude is ~360/2^15 ≈ 0.011, so we pick the zoom that
-    // makes the larger span fit in ~70% of the viewport.
-    final span = (spanLat > spanLng ? spanLat : spanLng).clamp(1e-5, 1.0);
-    final zoom = (15 - (span / 0.005).clamp(0.0, 6.0)).clamp(8.0, 18.0);
-    await map.flyTo(
-      mbx.CameraOptions(
-        center: mbx.Point(coordinates: mbx.Position(centerLng, centerLat)),
-        zoom: zoom,
-      ),
-      mbx.MapAnimationOptions(duration: 800),
+
+    // Use the SDK's own algorithm to compute the camera that fits the
+    // bounding box. Padding of 80/60 dp gives a comfortable margin.
+    final bounds = mbx.CoordinateBounds(
+      southwest: mbx.Point(
+          coordinates: mbx.Position(minLng, minLat)),
+      northeast: mbx.Point(
+          coordinates: mbx.Position(maxLng, maxLat)),
+      infiniteBounds: false,
     );
+
+    try {
+      final camera = await map.cameraForCoordinateBounds(
+        bounds,
+        mbx.MbxEdgeInsets(top: 80, left: 60, bottom: 80, right: 60),
+        null,   // bearing
+        null,   // pitch
+        18.0,   // maxZoom — never closer than z18
+        null,   // offset
+      );
+      await map.flyTo(camera, mbx.MapAnimationOptions(duration: 800));
+    } catch (_) {
+      // Fallback: fly to the centre at a safe zoom level.
+      final centerLat = (minLat + maxLat) / 2;
+      final centerLng = (minLng + maxLng) / 2;
+      await map.flyTo(
+        mbx.CameraOptions(
+          center: mbx.Point(
+              coordinates: mbx.Position(centerLng, centerLat)),
+          zoom: 14,
+        ),
+        mbx.MapAnimationOptions(duration: 800),
+      );
+    }
   }
 
   List<GeoPoint> _allGeometry() {
@@ -188,12 +210,6 @@ class _SplitwayMapState extends State<SplitwayMap> {
       }
     }
     all.addAll(widget.draftPath);
-    final dsg = widget.draftStartGate;
-    if (dsg != null) {
-      all
-        ..add(dsg.left)
-        ..add(dsg.right);
-    }
     for (final g in widget.draftSectorGates) {
       all
         ..add(g.left)
@@ -252,18 +268,16 @@ class _SplitwayMapState extends State<SplitwayMap> {
         lineWidth: 3,
       ));
     }
-    for (final p in widget.draftPath) {
+    // Draw circles only for the user-tapped waypoints, not for every point
+    // in the snapped path (which can have thousands of points and would
+    // saturate the Pigeon channel).
+    for (final p in widget.draftWaypoints) {
       await circleMgr.create(mbx.CircleAnnotationOptions(
         geometry: mbx.Point(
             coordinates: mbx.Position(p.longitude, p.latitude)),
         circleColor: 0xFF6A1B9A,
-        circleRadius: 4,
+        circleRadius: 6,
       ));
-    }
-    final dsg = widget.draftStartGate;
-    if (dsg != null) {
-      await _drawGate(lineMgr, circleMgr, dsg,
-          color: 0xFF2E7D32, width: 4);
     }
     for (final g in widget.draftSectorGates) {
       await _drawGate(lineMgr, circleMgr, g, color: 0xFFC62828, width: 3);

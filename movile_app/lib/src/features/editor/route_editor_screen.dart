@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
 
 import '../../config/app_config.dart';
+import '../../routing/app_router.dart';
+import '../../services/auth/auth_service.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/splitway_map.dart';
+import '../home/home_shell.dart';
 import 'route_editor_controller.dart';
 
 class RouteEditorScreen extends StatefulWidget {
@@ -12,10 +15,12 @@ class RouteEditorScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.config,
+    this.authService,
   });
 
   final RouteEditorController controller;
   final AppConfig config;
+  final AuthService? authService;
 
   @override
   State<RouteEditorScreen> createState() => _RouteEditorScreenState();
@@ -26,18 +31,28 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   void initState() {
     super.initState();
     widget.controller.addListener(_onChange);
+    widget.authService?.addListener(_onChange);
     widget.controller.load();
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_onChange);
+    widget.authService?.removeListener(_onChange);
     super.dispose();
   }
 
   void _onChange() => setState(() {});
 
   Future<void> _onCreateRoute() async {
+    // Auth guard: require login before creating a new route.
+    final allowed = await requireAuth(
+      context,
+      widget.authService,
+      message: 'Inicia sesión para crear una ruta',
+    );
+    if (!allowed || !mounted) return;
+
     final result = await showDialog<_NewRouteResult>(
       context: context,
       builder: (_) => const _NewRouteDialog(),
@@ -53,16 +68,16 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   Future<void> _confirmDelete(RouteTemplate route) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Eliminar ruta'),
         content: Text('¿Borrar "${route.name}" y todas sus sesiones?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Eliminar'),
           ),
         ],
@@ -84,6 +99,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     }
     return Scaffold(
       appBar: AppBar(
+        leading: buildDrawerLeading(context, widget.authService),
         title: const Text('Editor de rutas'),
         actions: [
           IconButton(
@@ -197,15 +213,13 @@ class _RouteDetail extends StatelessWidget {
               dense: true,
             )),
         const SizedBox(height: 16),
-        Text('Inicio / meta', style: theme.textTheme.titleMedium),
         ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.flag)),
-          title: Text(
-            '${_fmt(route.startFinishGate.center.latitude)}, ${_fmt(route.startFinishGate.center.longitude)}',
+          contentPadding: EdgeInsets.zero,
+          leading: CircleAvatar(
+            child: Icon(route.isClosed ? Icons.loop : Icons.linear_scale),
           ),
-          subtitle: Text(
-            'Creada el ${Formatters.dateTime(route.createdAt)}',
-          ),
+          title: Text(route.isClosed ? 'Circuito cerrado' : 'Circuito abierto'),
+          subtitle: Text('Creada el ${Formatters.dateTime(route.createdAt)}'),
         ),
         const SizedBox(height: 24),
         OutlinedButton.icon(
@@ -228,7 +242,6 @@ class _DrawingView extends StatelessWidget {
 
   String _modeLabel(DrawInputMode mode) => switch (mode) {
         DrawInputMode.appendPath => 'Toca para añadir un punto al trazado',
-        DrawInputMode.startGate => 'Toca 2 veces para definir la línea de inicio/meta',
         DrawInputMode.sectorGate => 'Toca 2 veces para añadir un sector',
       };
 
@@ -244,17 +257,17 @@ class _DrawingView extends StatelessWidget {
           onPressed: () async {
             final ok = await showDialog<bool>(
               context: context,
-              builder: (_) => AlertDialog(
+              builder: (dialogContext) => AlertDialog(
                 title: const Text('Cancelar dibujo'),
                 content:
                     const Text('Se descartarán los puntos sin guardar.'),
                 actions: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context, false),
+                    onPressed: () => Navigator.pop(dialogContext, false),
                     child: const Text('Volver'),
                   ),
                   FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
+                    onPressed: () => Navigator.pop(dialogContext, true),
                     child: const Text('Descartar'),
                   ),
                 ],
@@ -264,20 +277,32 @@ class _DrawingView extends StatelessWidget {
           },
         ),
         actions: [
-          TextButton(
-            onPressed: controller.draftCanSave
-                ? () async {
-                    final saved = await controller.saveDraft();
-                    if (!context.mounted) return;
-                    if (saved != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Guardada "${saved.name}"')),
-                      );
+          if (controller.snapping)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            TextButton(
+              onPressed: controller.draftCanSave
+                  ? () async {
+                      final saved = await controller.saveDraft();
+                      if (!context.mounted) return;
+                      if (saved != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Guardada "${saved.name}"'),
+                          ),
+                        );
+                      }
                     }
-                  }
-                : null,
-            child: const Text('Guardar'),
-          ),
+                  : null,
+              child: const Text('Guardar'),
+            ),
         ],
       ),
       body: Column(
@@ -286,21 +311,27 @@ class _DrawingView extends StatelessWidget {
             child: SplitwayMap(
               useMapbox: config.hasMapbox,
               draftPath: controller.draftPath,
-              draftStartGate: controller.draftStartGate,
+              draftWaypoints: controller.rawWaypoints,
               draftSectorGates: controller.draftSectorGates,
               onTap: controller.handleMapTap,
             ),
           ),
           if (!config.hasMapbox)
-            Container(
-              width: double.infinity,
+            _InfoBanner(
               color: theme.colorScheme.tertiaryContainer,
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                'Sin Mapbox token configurado. El mapa interactivo está '
-                'desactivado; para probar el dibujo, añade un token y reinicia.',
-                style: theme.textTheme.bodySmall,
-              ),
+              icon: Icons.map_outlined,
+              message: 'Sin Mapbox token configurado. El mapa interactivo está '
+                  'desactivado; añade un token y reinicia para dibujar sobre el mapa.',
+            )
+          else if (controller.snapFailed)
+            _InfoBanner(
+              color: theme.colorScheme.errorContainer,
+              icon: Icons.wifi_off_outlined,
+              iconColor: theme.colorScheme.onErrorContainer,
+              message: 'No se pudo conectar con el servidor para ajustar la '
+                  'ruta a las carreteras. Se muestran segmentos rectos hasta '
+                  'que la conexión se restablezca.',
+              textColor: theme.colorScheme.onErrorContainer,
             ),
           Container(
             color: theme.colorScheme.surfaceContainerHighest,
@@ -320,12 +351,6 @@ class _DrawingView extends StatelessWidget {
                       selected: controller.inputMode == DrawInputMode.appendPath,
                       onSelected: (_) =>
                           controller.setInputMode(DrawInputMode.appendPath),
-                    ),
-                    ChoiceChip(
-                      label: const Text('Inicio / meta'),
-                      selected: controller.inputMode == DrawInputMode.startGate,
-                      onSelected: (_) =>
-                          controller.setInputMode(DrawInputMode.startGate),
                     ),
                     ChoiceChip(
                       label: const Text('Añadir sector'),
@@ -365,16 +390,8 @@ class _DraftStatus extends StatelessWidget {
       children: [
         _StatusChip(
           icon: Icons.timeline,
-          label: '${controller.draftPath.length} puntos',
-          ok: controller.draftPath.length >= 2,
-        ),
-        const SizedBox(width: 8),
-        _StatusChip(
-          icon: Icons.flag,
-          label: controller.draftStartGate == null
-              ? 'Sin inicio'
-              : 'Inicio definido',
-          ok: controller.draftStartGate != null,
+          label: '${controller.draftWaypointCount} puntos',
+          ok: controller.draftWaypointCount >= 2,
         ),
         const SizedBox(width: 8),
         _StatusChip(
@@ -437,6 +454,51 @@ class _DifficultyChip extends StatelessWidget {
       backgroundColor: color.withValues(alpha: 0.15),
       side: BorderSide(color: color.withValues(alpha: 0.5)),
       labelStyle: TextStyle(color: color.shade900),
+    );
+  }
+}
+
+/// A full-width informational/warning banner shown below the map.
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({
+    required this.color,
+    required this.icon,
+    required this.message,
+    this.iconColor,
+    this.textColor,
+  });
+
+  final Color color;
+  final IconData icon;
+  final String message;
+  final Color? iconColor;
+  final Color? textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveIconColor =
+        iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant;
+    final effectiveTextColor =
+        textColor ?? Theme.of(context).colorScheme.onSurfaceVariant;
+    return Container(
+      width: double.infinity,
+      color: color,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: effectiveIconColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: effectiveTextColor),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

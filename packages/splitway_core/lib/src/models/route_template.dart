@@ -36,6 +36,11 @@ class RouteTemplate {
   final RouteDifficulty difficulty;
   final DateTime createdAt;
 
+  /// True when the route is a closed circuit (first and last path points
+  /// are the same, as set when the gap between them is ≤ 20 m at save time).
+  bool get isClosed =>
+      path.length >= 2 && path.first == path.last;
+
   RouteTemplate copyWith({
     String? id,
     String? name,

@@ -3,19 +3,23 @@ import 'package:splitway_core/splitway_core.dart';
 
 import '../../config/app_config.dart';
 import '../../data/repositories/local_draft_repository.dart';
+import '../../services/auth/auth_service.dart';
 import '../../shared/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/splitway_map.dart';
+import '../home/home_shell.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({
     super.key,
     required this.repository,
     this.config = const AppConfig(),
+    this.authService,
   });
 
   final LocalDraftRepository repository;
   final AppConfig config;
+  final AuthService? authService;
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -30,8 +34,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     widget.repository.changes.listen((_) => _load());
+    widget.authService?.addListener(_onAuthChanged);
     _load();
   }
+
+  @override
+  void dispose() {
+    widget.authService?.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() => setState(() {});
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -49,6 +62,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: buildDrawerLeading(context, widget.authService),
         title: const Text('Historial'),
         actions: [
           IconButton(

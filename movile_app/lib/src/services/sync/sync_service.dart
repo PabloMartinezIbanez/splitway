@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../data/repositories/local_draft_repository.dart';
@@ -10,17 +13,27 @@ import '../../data/repositories/supabase_repository.dart';
 /// - Push: all local routes/sessions that don't exist remotely or are newer.
 /// - Pull: all remote routes/sessions that don't exist locally or are newer.
 ///
-/// Telemetry is treated as immutable — once a session is completed and synced,
-/// its telemetry never changes. Re-syncing only overwrites if the session's
-/// `updated_at` is newer.
+/// Supports:
+/// - Periodic auto-sync every [syncInterval] (default 5 min).
+/// - Connectivity awareness — pauses when offline, resumes when back online.
+/// - Manual trigger via [sync()].
 class SyncService extends ChangeNotifier {
   SyncService({
     required this.local,
     required this.remote,
-  });
+    this.syncInterval = const Duration(minutes: 5),
+  }) {
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen(_onConnectivityChanged);
+  }
 
   final LocalDraftRepository local;
   final SupabaseRepository remote;
+  final Duration syncInterval;
+
+  Timer? _periodicTimer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isConnected = true;
 
   SyncStatus _status = SyncStatus.idle;
   SyncStatus get status => _status;
@@ -31,17 +44,57 @@ class SyncService extends ChangeNotifier {
   DateTime? _lastSyncedAt;
   DateTime? get lastSyncedAt => _lastSyncedAt;
 
+  /// Start the periodic sync timer. Call this after authentication succeeds.
+  void startPeriodicSync() {
+    _periodicTimer?.cancel();
+    _periodicTimer = Timer.periodic(syncInterval, (_) {
+      if (_isConnected) sync();
+    });
+    // Do an initial sync immediately.
+    if (_isConnected) sync();
+  }
+
+  /// Stop the periodic sync timer (e.g. on sign-out).
+  void stopPeriodicSync() {
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
+  }
+
+  void _onConnectivityChanged(List<ConnectivityResult> results) {
+    final wasConnected = _isConnected;
+    _isConnected =
+        results.any((r) => r != ConnectivityResult.none);
+
+    if (_isConnected && !wasConnected) {
+      // Back online — sync immediately.
+      debugPrint('SyncService: back online, syncing…');
+      _status = SyncStatus.idle;
+      notifyListeners();
+      sync();
+    } else if (!_isConnected && wasConnected) {
+      debugPrint('SyncService: went offline');
+      _status = SyncStatus.offline;
+      notifyListeners();
+    }
+  }
+
   /// Runs a full bidirectional sync.
   /// Returns the number of items transferred (pushed + pulled).
   Future<int> sync() async {
     if (_status == SyncStatus.syncing) return 0;
+    if (!_isConnected) {
+      _status = SyncStatus.offline;
+      notifyListeners();
+      return 0;
+    }
+
     _status = SyncStatus.syncing;
     _lastError = null;
     notifyListeners();
 
     try {
       final transferred = await _doSync();
-      _status = SyncStatus.idle;
+      _status = SyncStatus.success;
       _lastSyncedAt = DateTime.now();
       notifyListeners();
       return transferred;
@@ -78,8 +131,6 @@ class SyncService extends ChangeNotifier {
         await local.saveRouteTemplate(route);
         transferred++;
       }
-      // If exists locally but remote is newer, overwrite local.
-      // For simplicity in iter 3, we skip this — last pusher wins.
     }
 
     // --- Sessions ---
@@ -109,6 +160,13 @@ class SyncService extends ChangeNotifier {
 
     return transferred;
   }
+
+  @override
+  void dispose() {
+    _periodicTimer?.cancel();
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
 }
 
-enum SyncStatus { idle, syncing, error }
+enum SyncStatus { idle, syncing, error, success, offline }
