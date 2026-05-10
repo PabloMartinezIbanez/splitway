@@ -18,8 +18,9 @@ class SplitwayMap extends StatefulWidget {
     this.telemetry = const [],
     this.draftPath = const [],
     this.draftWaypoints = const [],
-    this.draftSectorGates = const [],
+    this.draftSectorPoints = const [],
     this.highlightSectorId,
+    this.showSectors = false,
     this.onTap,
     this.onLongPress,
     this.styleUri,
@@ -32,8 +33,11 @@ class SplitwayMap extends StatefulWidget {
   final List<GeoPoint> draftPath;
   /// User-tapped waypoints shown as circles during drawing (typically < 25).
   final List<GeoPoint> draftWaypoints;
-  final List<GateDefinition> draftSectorGates;
+  /// Snapped path vertices marking sector boundaries (shown as circles while drawing).
+  final List<GeoPoint> draftSectorPoints;
   final String? highlightSectorId;
+  /// When true, the saved route is drawn in per-sector colors instead of solid blue.
+  final bool showSectors;
   final ValueChanged<GeoPoint>? onTap;
   final ValueChanged<GeoPoint>? onLongPress;
   final String? styleUri;
@@ -41,6 +45,17 @@ class SplitwayMap extends StatefulWidget {
   @override
   State<SplitwayMap> createState() => _SplitwayMapState();
 }
+
+const _kSectorColors = [
+  0xFF1565C0, // blue
+  0xFF6A1B9A, // purple
+  0xFF00838F, // teal
+  0xFFF57F17, // amber
+  0xFF558B2F, // olive
+  0xFF4527A0, // deep purple
+  0xFFAD1457, // pink
+  0xFF00695C, // dark teal
+];
 
 class _SplitwayMapState extends State<SplitwayMap> {
   mbx.MapboxMap? _map;
@@ -79,8 +94,9 @@ class _SplitwayMapState extends State<SplitwayMap> {
         oldWidget.telemetry.length != widget.telemetry.length ||
         oldWidget.draftPath.length != widget.draftPath.length ||
         oldWidget.draftWaypoints.length != widget.draftWaypoints.length ||
-        oldWidget.draftSectorGates.length != widget.draftSectorGates.length ||
-        oldWidget.highlightSectorId != widget.highlightSectorId;
+        oldWidget.draftSectorPoints.length != widget.draftSectorPoints.length ||
+        oldWidget.highlightSectorId != widget.highlightSectorId ||
+        oldWidget.showSectors != widget.showSectors;
 
     if (annotationsChanged) _renderAnnotations();
 
@@ -210,11 +226,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
       }
     }
     all.addAll(widget.draftPath);
-    for (final g in widget.draftSectorGates) {
-      all
-        ..add(g.left)
-        ..add(g.right);
-    }
+    all.addAll(widget.draftSectorPoints);
     for (final t in widget.telemetry) {
       all.add(t.location);
     }
@@ -231,11 +243,24 @@ class _SplitwayMapState extends State<SplitwayMap> {
 
     final r = widget.route;
     if (r != null && r.path.isNotEmpty) {
-      await lineMgr.create(mbx.PolylineAnnotationOptions(
-        geometry: _toLineString(r.path),
-        lineColor: 0xFF1565C0,
-        lineWidth: 4,
-      ));
+      if (widget.showSectors && r.sectors.isNotEmpty) {
+        // Draw each sector segment in a different color.
+        final segments = _computeSectorSegments(r.path, r.sectors);
+        for (var i = 0; i < segments.length; i++) {
+          if (segments[i].length < 2) continue;
+          await lineMgr.create(mbx.PolylineAnnotationOptions(
+            geometry: _toLineString(segments[i]),
+            lineColor: _kSectorColors[i % _kSectorColors.length],
+            lineWidth: 4,
+          ));
+        }
+      } else {
+        await lineMgr.create(mbx.PolylineAnnotationOptions(
+          geometry: _toLineString(r.path),
+          lineColor: 0xFF1565C0,
+          lineWidth: 4,
+        ));
+      }
       await _drawGate(lineMgr, circleMgr, r.startFinishGate,
           color: 0xFF2E7D32, width: 5);
       for (final s in r.sectors) {
@@ -279,9 +304,47 @@ class _SplitwayMapState extends State<SplitwayMap> {
         circleRadius: 6,
       ));
     }
-    for (final g in widget.draftSectorGates) {
-      await _drawGate(lineMgr, circleMgr, g, color: 0xFFC62828, width: 3);
+    for (var i = 0; i < widget.draftSectorPoints.length; i++) {
+      final p = widget.draftSectorPoints[i];
+      await circleMgr.create(mbx.CircleAnnotationOptions(
+        geometry: mbx.Point(coordinates: mbx.Position(p.longitude, p.latitude)),
+        circleColor: _kSectorColors[i % _kSectorColors.length],
+        circleRadius: 8,
+        circleStrokeColor: 0xFFFFFFFF,
+        circleStrokeWidth: 2,
+      ));
     }
+  }
+
+  /// Splits [path] at the path indices nearest to each sector gate centre.
+  /// Returns one sub-list per colored segment (always at least 1 element).
+  List<List<GeoPoint>> _computeSectorSegments(
+      List<GeoPoint> path, List<SectorDefinition> sectors) {
+    if (sectors.isEmpty || path.length < 2) return [path];
+
+    // Find the nearest path index for each sector gate centre, then sort.
+    final breakIndices = sectors.map((s) {
+      int bestIdx = 0;
+      double bestDist = path[0].distanceTo(s.gate.center);
+      for (var i = 1; i < path.length; i++) {
+        final d = path[i].distanceTo(s.gate.center);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }).toSet().toList()
+      ..sort();
+
+    final segments = <List<GeoPoint>>[];
+    int start = 0;
+    for (final bp in breakIndices) {
+      if (bp > start) segments.add(path.sublist(start, bp + 1));
+      start = bp;
+    }
+    if (start < path.length) segments.add(path.sublist(start));
+    return segments;
   }
 
   Future<void> _drawGate(
