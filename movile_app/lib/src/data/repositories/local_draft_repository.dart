@@ -31,6 +31,7 @@ class LocalDraftRepository {
               jsonEncode(route.startFinishGate.toJson()),
           'difficulty': route.difficulty.id,
           'created_at': route.createdAt.toUtc().millisecondsSinceEpoch,
+          'location_label': route.locationLabel,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -98,6 +99,7 @@ class LocalDraftRepository {
         row['created_at']! as int,
         isUtc: true,
       ).toLocal(),
+      locationLabel: row['location_label'] as String?,
     );
   }
 
