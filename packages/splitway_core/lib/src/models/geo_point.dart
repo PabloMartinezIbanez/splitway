@@ -31,6 +31,31 @@ class GeoPoint {
     return (_toDegrees(bearing) + 360) % 360;
   }
 
+  /// Returns the point located [distanceMeters] away from this point
+  /// in the direction of [bearingDeg] (0° = north, clockwise).
+  GeoPoint destinationPoint(double bearingDeg, double distanceMeters) {
+    const R = _earthRadiusMeters;
+    final angDist = distanceMeters / R; // angular distance in radians
+    final theta = _toRadians(bearingDeg);
+    final lat1 = _toRadians(latitude);
+    final lon1 = _toRadians(longitude);
+
+    final lat2 = math.asin(
+      math.sin(lat1) * math.cos(angDist) +
+          math.cos(lat1) * math.sin(angDist) * math.cos(theta),
+    );
+    final lon2 = lon1 +
+        math.atan2(
+          math.sin(theta) * math.sin(angDist) * math.cos(lat1),
+          math.cos(angDist) - math.sin(lat1) * math.sin(lat2),
+        );
+
+    return GeoPoint(
+      latitude: _toDegrees(lat2),
+      longitude: (_toDegrees(lon2) + 540) % 360 - 180, // normalise to [-180, 180]
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'latitude': latitude,
         'longitude': longitude,
