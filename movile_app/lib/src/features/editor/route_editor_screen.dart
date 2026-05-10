@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:splitway_core/splitway_core.dart';
 
 import '../../config/app_config.dart';
@@ -29,6 +30,7 @@ class RouteEditorScreen extends StatefulWidget {
 class _RouteEditorScreenState extends State<RouteEditorScreen> {
   bool _showSectors = false;
   String? _lastSelectedId;
+  GeoPoint? _userLocation;
 
   @override
   void initState() {
@@ -68,11 +70,43 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
       builder: (_) => const _NewRouteDialog(),
     );
     if (result == null) return;
+
+    // Try to get the user's current location for the initial map center.
+    _userLocation = await _getCurrentLocation();
+
     widget.controller.startDrawing(
       name: result.name,
       description: result.description,
       difficulty: result.difficulty,
     );
+  }
+
+  /// Returns the user's current GPS position, or null if unavailable.
+  /// Uses a 5-second timeout to avoid blocking the UI.
+  Future<GeoPoint?> _getCurrentLocation() async {
+    try {
+      final servicesOn = await Geolocator.isLocationServiceEnabled();
+      if (!servicesOn) return null;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+      return GeoPoint(latitude: position.latitude, longitude: position.longitude);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _confirmDelete(RouteTemplate route) async {
@@ -105,6 +139,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
       return _DrawingView(
         controller: ctrl,
         config: widget.config,
+        initialCenter: _userLocation,
       );
     }
     return Scaffold(
@@ -261,10 +296,15 @@ class _RouteDetail extends StatelessWidget {
 }
 
 class _DrawingView extends StatelessWidget {
-  const _DrawingView({required this.controller, required this.config});
+  const _DrawingView({
+    required this.controller,
+    required this.config,
+    this.initialCenter,
+  });
 
   final RouteEditorController controller;
   final AppConfig config;
+  final GeoPoint? initialCenter;
 
   String _modeLabel(DrawInputMode mode) => switch (mode) {
         DrawInputMode.appendPath => 'Toca para añadir un punto al trazado',
@@ -336,6 +376,7 @@ class _DrawingView extends StatelessWidget {
           Expanded(
             child: SplitwayMap(
               useMapbox: config.hasMapbox,
+              initialCenter: initialCenter,
               draftPath: controller.draftPath,
               draftWaypoints: controller.rawWaypoints,
               draftSectorPoints: controller.draftSectorPoints,

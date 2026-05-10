@@ -22,6 +22,7 @@ class SplitwayMap extends StatefulWidget {
     this.draftSectorPoints = const [],
     this.highlightSectorId,
     this.showSectors = false,
+    this.initialCenter,
     this.onTap,
     this.onLongPress,
     this.styleUri,
@@ -39,6 +40,8 @@ class SplitwayMap extends StatefulWidget {
   final String? highlightSectorId;
   /// When true, the saved route is drawn in per-sector colors instead of solid blue.
   final bool showSectors;
+  /// Initial camera center (e.g. user GPS location). Falls back to Madrid if null.
+  final GeoPoint? initialCenter;
   final ValueChanged<GeoPoint>? onTap;
   final ValueChanged<GeoPoint>? onLongPress;
   final String? styleUri;
@@ -118,6 +121,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
       return widget.route!.path.first;
     }
     if (widget.draftPath.isNotEmpty) return widget.draftPath.first;
+    if (widget.initialCenter != null) return widget.initialCenter!;
     return const GeoPoint(latitude: 40.4168, longitude: -3.7038);
   }
 
