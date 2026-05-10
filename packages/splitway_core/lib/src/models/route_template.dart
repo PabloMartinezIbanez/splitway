@@ -25,11 +25,13 @@ class RouteTemplate {
     required this.difficulty,
     required this.createdAt,
     this.description,
+    this.locationLabel,
   });
 
   final String id;
   final String name;
   final String? description;
+  final String? locationLabel;
   final List<GeoPoint> path;
   final GateDefinition startFinishGate;
   final List<SectorDefinition> sectors;
@@ -41,10 +43,21 @@ class RouteTemplate {
   bool get isClosed =>
       path.length >= 2 && path.first == path.last;
 
+  /// Total route distance in meters, computed from the path vertices.
+  double get totalDistanceMeters {
+    if (path.length < 2) return 0;
+    double total = 0;
+    for (var i = 0; i < path.length - 1; i++) {
+      total += path[i].distanceTo(path[i + 1]);
+    }
+    return total;
+  }
+
   RouteTemplate copyWith({
     String? id,
     String? name,
     String? description,
+    String? locationLabel,
     List<GeoPoint>? path,
     GateDefinition? startFinishGate,
     List<SectorDefinition>? sectors,
@@ -55,6 +68,7 @@ class RouteTemplate {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
+      locationLabel: locationLabel ?? this.locationLabel,
       path: path ?? this.path,
       startFinishGate: startFinishGate ?? this.startFinishGate,
       sectors: sectors ?? this.sectors,
@@ -67,6 +81,7 @@ class RouteTemplate {
         'id': id,
         'name': name,
         'description': description,
+        'locationLabel': locationLabel,
         'path': path.map((p) => p.toJson()).toList(),
         'startFinishGate': startFinishGate.toJson(),
         'sectors': sectors.map((s) => s.toJson()).toList(),
@@ -78,6 +93,7 @@ class RouteTemplate {
         id: json['id'] as String,
         name: json['name'] as String,
         description: json['description'] as String?,
+        locationLabel: json['locationLabel'] as String?,
         path: (json['path'] as List<dynamic>)
             .map((e) => GeoPoint.fromJson(e as Map<String, dynamic>))
             .toList(),
