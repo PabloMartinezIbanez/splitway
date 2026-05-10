@@ -117,6 +117,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
         route: route,
         telemetry: widget.telemetry,
         highlightSectorId: widget.highlightSectorId,
+        showSectors: widget.showSectors,
       ),
       child: const SizedBox.expand(),
     );

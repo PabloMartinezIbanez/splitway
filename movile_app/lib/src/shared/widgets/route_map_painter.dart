@@ -9,11 +9,24 @@ class RouteMapPainter extends CustomPainter {
     required this.route,
     this.telemetry = const [],
     this.highlightSectorId,
+    this.showSectors = false,
   });
 
   final RouteTemplate route;
   final List<TelemetryPoint> telemetry;
   final String? highlightSectorId;
+  final bool showSectors;
+
+  static const _sectorColors = [
+    Color(0xFF1565C0),
+    Color(0xFF6A1B9A),
+    Color(0xFF00838F),
+    Color(0xFFF57F17),
+    Color(0xFF558B2F),
+    Color(0xFF4527A0),
+    Color(0xFFAD1457),
+    Color(0xFF00695C),
+  ];
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -71,20 +84,39 @@ class RouteMapPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Path.
+    // Path — plain or sector-colored.
     if (route.path.length >= 2) {
-      final pathPaint = Paint()
-        ..color = const Color(0xFF1565C0)
-        ..strokeWidth = 3
-        ..style = PaintingStyle.stroke
-        ..strokeJoin = StrokeJoin.round;
-      final p = Path()..moveTo(project(route.path.first).dx,
-          project(route.path.first).dy);
-      for (final pt in route.path.skip(1)) {
-        final o = project(pt);
-        p.lineTo(o.dx, o.dy);
+      if (showSectors && route.sectors.isNotEmpty) {
+        final segments = _computeSectorSegments(route.path, route.sectors);
+        for (var i = 0; i < segments.length; i++) {
+          final seg = segments[i];
+          if (seg.length < 2) continue;
+          final paint = Paint()
+            ..color = _sectorColors[i % _sectorColors.length]
+            ..strokeWidth = 3
+            ..style = PaintingStyle.stroke
+            ..strokeJoin = StrokeJoin.round;
+          final p = Path()..moveTo(project(seg.first).dx, project(seg.first).dy);
+          for (final pt in seg.skip(1)) {
+            final o = project(pt);
+            p.lineTo(o.dx, o.dy);
+          }
+          canvas.drawPath(p, paint);
+        }
+      } else {
+        final pathPaint = Paint()
+          ..color = const Color(0xFF1565C0)
+          ..strokeWidth = 3
+          ..style = PaintingStyle.stroke
+          ..strokeJoin = StrokeJoin.round;
+        final p = Path()
+          ..moveTo(project(route.path.first).dx, project(route.path.first).dy);
+        for (final pt in route.path.skip(1)) {
+          final o = project(pt);
+          p.lineTo(o.dx, o.dy);
+        }
+        canvas.drawPath(p, pathPaint);
       }
-      canvas.drawPath(p, pathPaint);
     }
 
     // Telemetry trace (if any).
@@ -116,6 +148,34 @@ class RouteMapPainter extends CustomPainter {
     }
   }
 
+  List<List<GeoPoint>> _computeSectorSegments(
+      List<GeoPoint> path, List<SectorDefinition> sectors) {
+    if (sectors.isEmpty || path.length < 2) return [path];
+
+    final breakIndices = sectors.map((s) {
+      int bestIdx = 0;
+      double bestDist = path[0].distanceTo(s.gate.center);
+      for (var i = 1; i < path.length; i++) {
+        final d = path[i].distanceTo(s.gate.center);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }).toSet().toList()
+      ..sort();
+
+    final segments = <List<GeoPoint>>[];
+    int start = 0;
+    for (final bp in breakIndices) {
+      if (bp > start) segments.add(path.sublist(start, bp + 1));
+      start = bp;
+    }
+    if (start < path.length) segments.add(path.sublist(start));
+    return segments;
+  }
+
   void _drawGate(
     Canvas canvas,
     Offset Function(GeoPoint) project,
@@ -137,6 +197,7 @@ class RouteMapPainter extends CustomPainter {
   bool shouldRepaint(covariant RouteMapPainter oldDelegate) {
     return oldDelegate.route != route ||
         oldDelegate.telemetry.length != telemetry.length ||
-        oldDelegate.highlightSectorId != highlightSectorId;
+        oldDelegate.highlightSectorId != highlightSectorId ||
+        oldDelegate.showSectors != showSectors;
   }
 }
