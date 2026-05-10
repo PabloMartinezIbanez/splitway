@@ -217,7 +217,12 @@ class RouteEditorController extends ChangeNotifier {
     if (idx < _draftPath.length - 1) {
       return _perpendicularGate(anchor, _draftPath[idx + 1]);
     }
-    return _perpendicularGate(_draftPath[idx - 1], anchor);
+    // At the last vertex: extrapolate the bearing forward to keep the gate
+    // centered on anchor (not on the previous vertex).
+    final prev = _draftPath[idx - 1];
+    final bearing = prev.bearingTo(anchor);
+    final reference = anchor.destinationPoint(bearing, 1.0);
+    return _perpendicularGate(anchor, reference);
   }
 
   // ---------- Live snap helpers ----------

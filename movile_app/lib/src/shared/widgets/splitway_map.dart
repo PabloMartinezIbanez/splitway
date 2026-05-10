@@ -3,6 +3,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mbx;
 import 'package:splitway_core/splitway_core.dart';
 
 import 'route_map_painter.dart';
+import 'sector_segments.dart';
 
 /// Wraps a real Mapbox `MapWidget` when [useMapbox] is true; otherwise falls
 /// back to the iter 1 `RouteMapPainter`. The fallback keeps widget tests
@@ -45,17 +46,6 @@ class SplitwayMap extends StatefulWidget {
   @override
   State<SplitwayMap> createState() => _SplitwayMapState();
 }
-
-const _kSectorColors = [
-  0xFF1565C0, // blue
-  0xFF6A1B9A, // purple
-  0xFF00838F, // teal
-  0xFFF57F17, // amber
-  0xFF558B2F, // olive
-  0xFF4527A0, // deep purple
-  0xFFAD1457, // pink
-  0xFF00695C, // dark teal
-];
 
 class _SplitwayMapState extends State<SplitwayMap> {
   mbx.MapboxMap? _map;
@@ -246,12 +236,12 @@ class _SplitwayMapState extends State<SplitwayMap> {
     if (r != null && r.path.isNotEmpty) {
       if (widget.showSectors && r.sectors.isNotEmpty) {
         // Draw each sector segment in a different color.
-        final segments = _computeSectorSegments(r.path, r.sectors);
+        final segments = computeSectorSegments(r.path, r.sectors);
         for (var i = 0; i < segments.length; i++) {
           if (segments[i].length < 2) continue;
           await lineMgr.create(mbx.PolylineAnnotationOptions(
             geometry: _toLineString(segments[i]),
-            lineColor: _kSectorColors[i % _kSectorColors.length],
+            lineColor: kSectorColors[i % kSectorColors.length].value,
             lineWidth: 4,
           ));
         }
@@ -309,43 +299,12 @@ class _SplitwayMapState extends State<SplitwayMap> {
       final p = widget.draftSectorPoints[i];
       await circleMgr.create(mbx.CircleAnnotationOptions(
         geometry: mbx.Point(coordinates: mbx.Position(p.longitude, p.latitude)),
-        circleColor: _kSectorColors[i % _kSectorColors.length],
+        circleColor: kSectorColors[i % kSectorColors.length].value,
         circleRadius: 8,
         circleStrokeColor: 0xFFFFFFFF,
         circleStrokeWidth: 2,
       ));
     }
-  }
-
-  /// Splits [path] at the path indices nearest to each sector gate centre.
-  /// Returns one sub-list per colored segment (always at least 1 element).
-  List<List<GeoPoint>> _computeSectorSegments(
-      List<GeoPoint> path, List<SectorDefinition> sectors) {
-    if (sectors.isEmpty || path.length < 2) return [path];
-
-    // Find the nearest path index for each sector gate centre, then sort.
-    final breakIndices = sectors.map((s) {
-      int bestIdx = 0;
-      double bestDist = path[0].distanceTo(s.gate.center);
-      for (var i = 1; i < path.length; i++) {
-        final d = path[i].distanceTo(s.gate.center);
-        if (d < bestDist) {
-          bestDist = d;
-          bestIdx = i;
-        }
-      }
-      return bestIdx;
-    }).toSet().toList()
-      ..sort();
-
-    final segments = <List<GeoPoint>>[];
-    int start = 0;
-    for (final bp in breakIndices) {
-      if (bp > start) segments.add(path.sublist(start, bp + 1));
-      start = bp;
-    }
-    if (start < path.length) segments.add(path.sublist(start));
-    return segments;
   }
 
   Future<void> _drawGate(

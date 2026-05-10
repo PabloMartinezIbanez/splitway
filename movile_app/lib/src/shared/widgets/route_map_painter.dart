@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
+import 'sector_segments.dart';
 
 /// Iter 1 placeholder for Mapbox. Renders a route, gates and (optionally)
 /// a session telemetry trace by projecting lat/lng to the canvas with
@@ -16,17 +17,6 @@ class RouteMapPainter extends CustomPainter {
   final List<TelemetryPoint> telemetry;
   final String? highlightSectorId;
   final bool showSectors;
-
-  static const _sectorColors = [
-    Color(0xFF1565C0),
-    Color(0xFF6A1B9A),
-    Color(0xFF00838F),
-    Color(0xFFF57F17),
-    Color(0xFF558B2F),
-    Color(0xFF4527A0),
-    Color(0xFFAD1457),
-    Color(0xFF00695C),
-  ];
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -87,12 +77,12 @@ class RouteMapPainter extends CustomPainter {
     // Path — plain or sector-colored.
     if (route.path.length >= 2) {
       if (showSectors && route.sectors.isNotEmpty) {
-        final segments = _computeSectorSegments(route.path, route.sectors);
+        final segments = computeSectorSegments(route.path, route.sectors);
         for (var i = 0; i < segments.length; i++) {
           final seg = segments[i];
           if (seg.length < 2) continue;
           final paint = Paint()
-            ..color = _sectorColors[i % _sectorColors.length]
+            ..color = kSectorColors[i % kSectorColors.length]
             ..strokeWidth = 3
             ..style = PaintingStyle.stroke
             ..strokeJoin = StrokeJoin.round;
@@ -146,34 +136,6 @@ class RouteMapPainter extends CustomPainter {
           isHighlight ? const Color(0xFFFFB300) : const Color(0xFFC62828),
           isHighlight ? 4 : 3);
     }
-  }
-
-  List<List<GeoPoint>> _computeSectorSegments(
-      List<GeoPoint> path, List<SectorDefinition> sectors) {
-    if (sectors.isEmpty || path.length < 2) return [path];
-
-    final breakIndices = sectors.map((s) {
-      int bestIdx = 0;
-      double bestDist = path[0].distanceTo(s.gate.center);
-      for (var i = 1; i < path.length; i++) {
-        final d = path[i].distanceTo(s.gate.center);
-        if (d < bestDist) {
-          bestDist = d;
-          bestIdx = i;
-        }
-      }
-      return bestIdx;
-    }).toSet().toList()
-      ..sort();
-
-    final segments = <List<GeoPoint>>[];
-    int start = 0;
-    for (final bp in breakIndices) {
-      if (bp > start) segments.add(path.sublist(start, bp + 1));
-      start = bp;
-    }
-    if (start < path.length) segments.add(path.sublist(start));
-    return segments;
   }
 
   void _drawGate(
