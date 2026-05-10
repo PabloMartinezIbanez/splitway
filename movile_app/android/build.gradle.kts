@@ -2,6 +2,23 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Mapbox SDK downloads — requires MAPBOX_DOWNLOADS_TOKEN in
+        // ~/.gradle/gradle.properties (or as an env var). Create one at
+        // https://account.mapbox.com/access-tokens/ with the Downloads:Read
+        // scope. Without it, the Android build will fail when fetching
+        // mapbox-maps-android.
+        maven {
+            url = uri("https://api.mapbox.com/downloads/v2/releases/maven")
+            authentication {
+                create<BasicAuthentication>("basic")
+            }
+            credentials {
+                username = "mapbox"
+                password = (project.findProperty("MAPBOX_DOWNLOADS_TOKEN") as String?)
+                    ?: System.getenv("MAPBOX_DOWNLOADS_TOKEN")
+                    ?: ""
+            }
+        }
     }
 }
 

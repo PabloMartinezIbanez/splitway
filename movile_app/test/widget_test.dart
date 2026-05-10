@@ -1,30 +1,152 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:splitway_core/splitway_core.dart';
+import 'package:splitway_mobile/src/config/app_config.dart';
+import 'package:splitway_mobile/src/data/demo/demo_seed.dart';
+import 'package:splitway_mobile/src/data/local/splitway_local_database.dart';
+import 'package:splitway_mobile/src/data/repositories/local_draft_repository.dart';
+import 'package:splitway_mobile/src/features/editor/route_editor_controller.dart';
+import 'package:splitway_mobile/src/features/editor/route_editor_screen.dart';
+import 'package:splitway_mobile/src/features/history/history_screen.dart';
 
-import 'package:splitway/main.dart';
+/// Iter 1 test strategy: pure-Dart tests for the data layer, and widget tests
+/// that mount individual screens (NOT the full SplitwayApp). The full app
+/// would need `integration_test` because `MaterialApp.router` +
+/// `StatefulShellRoute.indexedStack` plus `sqflite_common_ffi` don't play
+/// nicely with the FakeAsync zone used by `flutter_test`. Iter 2 will switch
+/// to `integration_test` for full-app coverage.
+int _dbCounter = 0;
+
+Future<({SplitwayLocalDatabase db, LocalDraftRepository repo})> _bootRepo({
+  bool seed = true,
+}) async {
+  // Each test needs a fresh in-memory DB; sqflite_common_ffi caches
+  // connections by path, so we use a counter to keep them distinct.
+  _dbCounter += 1;
+  final db = await SplitwayLocalDatabase.open(
+    overridePath: 'file:test_$_dbCounter?mode=memory&cache=shared',
+  );
+  final repo = LocalDraftRepository(db);
+  if (seed) {
+    await DemoSeed.ensureSeeded(repo);
+  }
+  return (db: db, repo: repo);
+}
+
+Future<void> _shutdown(
+  ({SplitwayLocalDatabase db, LocalDraftRepository repo}) boot,
+) async {
+  await boot.repo.dispose();
+  await boot.db.close();
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUpAll(() async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+    await initializeDateFormatting('es_ES');
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('SplitwayLocalDatabase + DemoSeed populate the demo route', () async {
+    final boot = await _bootRepo();
+    final routes = await boot.repo.getAllRoutes();
+    expect(routes, hasLength(1));
+    expect(routes.first.name, 'Pista demo (Madrid)');
+    expect(routes.first.sectors, hasLength(2));
+    expect(routes.first.startFinishGate, isA<GateDefinition>());
+    await _shutdown(boot);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  test('LocalDraftRepository round-trips a SessionRun', () async {
+    final boot = await _bootRepo();
+    final route = (await boot.repo.getAllRoutes()).first;
+    final now = DateTime.parse('2026-04-29T10:00:00Z');
+    final session = SessionRun(
+      id: 'sess-test',
+      routeTemplateId: route.id,
+      startedAt: now,
+      endedAt: now.add(const Duration(seconds: 90)),
+      status: SessionStatus.completed,
+      points: [
+        TelemetryPoint(
+          timestamp: now,
+          location: route.startFinishGate.center,
+          speedMps: 10,
+        ),
+      ],
+      laps: [
+        LapSummary(
+          lapNumber: 1,
+          duration: const Duration(seconds: 45),
+          startedAt: now,
+          endedAt: now.add(const Duration(seconds: 45)),
+          distanceMeters: 500,
+          avgSpeedMps: 11.1,
+        ),
+      ],
+      sectorSummaries: const [],
+      totalDistanceMeters: 500,
+      maxSpeedMps: 12,
+      avgSpeedMps: 10,
+    );
+    await boot.repo.saveSessionRun(session);
+    final reloaded = await boot.repo.getSessionRun('sess-test');
+    expect(reloaded, isNotNull);
+    expect(reloaded!.laps, hasLength(1));
+    expect(reloaded.points, hasLength(1));
+    expect(reloaded.totalDistanceMeters, 500);
+    await _shutdown(boot);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('RouteEditorScreen renders the demo route after load',
+      (tester) async {
+    late ({SplitwayLocalDatabase db, LocalDraftRepository repo}) boot;
+    late RouteEditorController controller;
+    await tester.runAsync(() async {
+      boot = await _bootRepo();
+      controller = RouteEditorController(boot.repo);
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: RouteEditorScreen(
+        controller: controller,
+        config: const AppConfig(),
+      ),
+    ));
+    for (var i = 0; i < 5; i++) {
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pump();
+    }
+
+    expect(find.text('Pista demo (Madrid)'), findsAtLeastNWidgets(1));
+
+    controller.dispose();
+    await tester.runAsync(() => _shutdown(boot));
+  });
+
+  testWidgets('HistoryScreen shows the empty state with no sessions',
+      (tester) async {
+    late ({SplitwayLocalDatabase db, LocalDraftRepository repo}) boot;
+    await tester.runAsync(() async {
+      boot = await _bootRepo(seed: false);
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: HistoryScreen(repository: boot.repo),
+    ));
+    for (var i = 0; i < 5; i++) {
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pump();
+    }
+
+    expect(find.text('Aún no has grabado ninguna sesión'), findsOneWidget);
+
+    await tester.runAsync(() => _shutdown(boot));
   });
 }

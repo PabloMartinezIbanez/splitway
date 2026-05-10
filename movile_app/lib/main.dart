@@ -1,46 +1,35 @@
-import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mbx;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+import 'src/app.dart';
+import 'src/config/app_config.dart';
+import 'src/data/demo/demo_seed.dart';
+import 'src/data/local/splitway_local_database.dart';
+import 'src/data/repositories/local_draft_repository.dart';
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es_ES');
 
-  @override
-  Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => MyAppState(),
-      child: MaterialApp(
-        title: 'Namer App',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
-        ),
-        home: MyHomePage(),
-      ),
+  final config = await AppConfig.load();
+  if (config.hasMapbox) {
+    mbx.MapboxOptions.setAccessToken(config.mapboxToken!);
+  }
+
+  // Initialize Supabase if credentials are available.
+  if (config.hasSupabase) {
+    await Supabase.initialize(
+      url: config.supabaseUrl!,
+      anonKey: config.supabaseAnonKey!,
     );
   }
-}
 
-class MyAppState extends ChangeNotifier {
-  var current = WordPair.random();
-}
+  final database = await SplitwayLocalDatabase.open();
+  final seedRepo = LocalDraftRepository(database);
+  await DemoSeed.ensureSeeded(seedRepo);
+  await seedRepo.dispose();
 
-class MyHomePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-
-    return Scaffold(
-      body: Column(
-        children: [
-          Text('A random idea:'),
-          Text(appState.current.asLowerCase),
-        ],
-      ),
-    );
-  }
+  runApp(SplitwayApp(config: config, database: database));
 }

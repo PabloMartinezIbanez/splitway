@@ -1,0 +1,258 @@
+import 'dart:convert';
+
+import 'package:splitway_core/splitway_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Remote repository backed by Supabase Postgres + RLS.
+/// Each row has an `owner_id` populated from the current [User].
+///
+/// This class handles:
+/// - Pushing local routes/sessions to the cloud.
+/// - Pulling remote data that may have been created on another device.
+/// - Last-write-wins conflict resolution via `updated_at`.
+class SupabaseRepository {
+  SupabaseRepository(this._client);
+
+  final SupabaseClient _client;
+
+  String get _uid => _client.auth.currentUser!.id;
+
+  // ---------- Routes ----------
+
+  /// Upserts a route template (with sectors) to Supabase.
+  Future<void> upsertRoute(RouteTemplate route) async {
+    await _client.from('route_templates').upsert({
+      'id': route.id,
+      'owner_id': _uid,
+      'name': route.name,
+      'description': route.description,
+      'path_json': route.path.map((p) => p.toJson()).toList(),
+      'start_finish_gate_json': route.startFinishGate.toJson(),
+      'difficulty': route.difficulty.id,
+      'created_at': route.createdAt.toUtc().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+
+    // Delete old sectors and re-insert
+    await _client.from('sectors').delete().eq('route_id', route.id);
+    if (route.sectors.isNotEmpty) {
+      await _client.from('sectors').insert(
+        route.sectors.map((s) => {
+          'id': s.id,
+          'route_id': route.id,
+          'order_index': s.order,
+          'label': s.label,
+          'gate_json': s.gate.toJson(),
+        }).toList(),
+      );
+    }
+  }
+
+  /// Fetches all routes belonging to the current user.
+  Future<List<RouteTemplate>> fetchAllRoutes() async {
+    final rows = await _client
+        .from('route_templates')
+        .select()
+        .order('created_at', ascending: false);
+
+    final routes = <RouteTemplate>[];
+    for (final row in rows) {
+      final sectorRows = await _client
+          .from('sectors')
+          .select()
+          .eq('route_id', row['id'] as String)
+          .order('order_index');
+      routes.add(_parseRoute(row, sectorRows));
+    }
+    return routes;
+  }
+
+  /// Deletes a route from the cloud.
+  Future<void> deleteRoute(String id) async {
+    await _client.from('route_templates').delete().eq('id', id);
+  }
+
+  // ---------- Sessions ----------
+
+  /// Upserts a session run (metadata + telemetry) to Supabase.
+  Future<void> upsertSession(SessionRun session) async {
+    await _client.from('session_runs').upsert({
+      'id': session.id,
+      'owner_id': _uid,
+      'route_id': session.routeTemplateId,
+      'started_at': session.startedAt.toUtc().toIso8601String(),
+      'ended_at': session.endedAt?.toUtc().toIso8601String(),
+      'status': session.status.id,
+      'lap_summaries_json': session.laps.map((l) => l.toJson()).toList(),
+      'sector_summaries_json':
+          session.sectorSummaries.map((s) => s.toJson()).toList(),
+      'total_distance_m': session.totalDistanceMeters,
+      'max_speed_mps': session.maxSpeedMps,
+      'avg_speed_mps': session.avgSpeedMps,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+
+    // Telemetry: delete old + bulk insert.
+    await _client
+        .from('telemetry_points')
+        .delete()
+        .eq('session_id', session.id);
+
+    if (session.points.isNotEmpty) {
+      // Insert in batches of 500 to avoid payload limits.
+      const batchSize = 500;
+      for (var i = 0; i < session.points.length; i += batchSize) {
+        final batch = session.points.skip(i).take(batchSize);
+        await _client.from('telemetry_points').insert(
+          batch.map((p) => {
+            'session_id': session.id,
+            'owner_id': _uid,
+            'ts': p.timestamp.toUtc().toIso8601String(),
+            'lat': p.location.latitude,
+            'lng': p.location.longitude,
+            'speed_mps': p.speedMps,
+            'accuracy_m': p.accuracyMeters,
+            'bearing_deg': p.bearingDeg,
+            'altitude_m': p.altitudeMeters,
+          }).toList(),
+        );
+      }
+    }
+  }
+
+  /// Fetches all sessions belonging to the current user.
+  Future<List<SessionRun>> fetchAllSessions(
+      {bool includePoints = false}) async {
+    final rows = await _client
+        .from('session_runs')
+        .select()
+        .order('started_at', ascending: false);
+
+    final sessions = <SessionRun>[];
+    for (final row in rows) {
+      List<TelemetryPoint> points = const [];
+      if (includePoints) {
+        final tRows = await _client
+            .from('telemetry_points')
+            .select()
+            .eq('session_id', row['id'] as String)
+            .order('ts');
+        points = tRows.map(_parseTelemetryPoint).toList();
+      }
+      sessions.add(_parseSession(row, points));
+    }
+    return sessions;
+  }
+
+  /// Deletes a session from the cloud.
+  Future<void> deleteSession(String id) async {
+    await _client.from('session_runs').delete().eq('id', id);
+  }
+
+  // ---------- Sync helpers ----------
+
+  /// Returns remote route IDs with their `updated_at` timestamps for
+  /// diffing against local state.
+  Future<Map<String, DateTime>> fetchRouteTimestamps() async {
+    final rows = await _client
+        .from('route_templates')
+        .select('id, updated_at');
+    return {
+      for (final r in rows)
+        r['id'] as String: DateTime.parse(r['updated_at'] as String),
+    };
+  }
+
+  /// Returns remote session IDs with their `updated_at` timestamps.
+  Future<Map<String, DateTime>> fetchSessionTimestamps() async {
+    final rows = await _client
+        .from('session_runs')
+        .select('id, updated_at');
+    return {
+      for (final r in rows)
+        r['id'] as String: DateTime.parse(r['updated_at'] as String),
+    };
+  }
+
+  // ---------- Parsers ----------
+
+  RouteTemplate _parseRoute(
+      Map<String, dynamic> row, List<Map<String, dynamic>> sectorRows) {
+    final pathJson = row['path_json'];
+    final List<dynamic> pathList =
+        pathJson is String ? jsonDecode(pathJson) as List<dynamic> : pathJson as List<dynamic>;
+    final gateJson = row['start_finish_gate_json'];
+    final Map<String, dynamic> gateMap =
+        gateJson is String ? jsonDecode(gateJson) as Map<String, dynamic> : Map<String, dynamic>.from(gateJson as Map);
+
+    final sectors = sectorRows.map((s) {
+      final sGate = s['gate_json'];
+      final Map<String, dynamic> sGateMap =
+          sGate is String ? jsonDecode(sGate) as Map<String, dynamic> : Map<String, dynamic>.from(sGate as Map);
+      return SectorDefinition(
+        id: s['id'] as String,
+        order: s['order_index'] as int,
+        label: s['label'] as String,
+        gate: GateDefinition.fromJson(sGateMap),
+      );
+    }).toList();
+
+    return RouteTemplate(
+      id: row['id'] as String,
+      name: row['name'] as String,
+      description: row['description'] as String?,
+      path: pathList
+          .map((e) => GeoPoint.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      startFinishGate: GateDefinition.fromJson(gateMap),
+      sectors: sectors,
+      difficulty: RouteDifficultyX.fromId(row['difficulty'] as String),
+      createdAt: DateTime.parse(row['created_at'] as String).toLocal(),
+    );
+  }
+
+  SessionRun _parseSession(
+      Map<String, dynamic> row, List<TelemetryPoint> points) {
+    final lapsJson = row['lap_summaries_json'];
+    final List<dynamic> lapsList =
+        lapsJson is String ? jsonDecode(lapsJson) as List<dynamic> : lapsJson as List<dynamic>;
+    final sectorsJson = row['sector_summaries_json'];
+    final List<dynamic> sectorsList =
+        sectorsJson is String ? jsonDecode(sectorsJson) as List<dynamic> : sectorsJson as List<dynamic>;
+
+    return SessionRun(
+      id: row['id'] as String,
+      routeTemplateId: row['route_id'] as String,
+      startedAt: DateTime.parse(row['started_at'] as String).toLocal(),
+      endedAt: row['ended_at'] == null
+          ? null
+          : DateTime.parse(row['ended_at'] as String).toLocal(),
+      status: SessionStatusX.fromId(row['status'] as String),
+      points: points,
+      laps: lapsList
+          .map((e) => LapSummary.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      sectorSummaries: sectorsList
+          .map((e) =>
+              SectorSummary.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      totalDistanceMeters: (row['total_distance_m'] as num).toDouble(),
+      maxSpeedMps: (row['max_speed_mps'] as num).toDouble(),
+      avgSpeedMps: (row['avg_speed_mps'] as num).toDouble(),
+    );
+  }
+
+  TelemetryPoint _parseTelemetryPoint(Map<String, dynamic> t) {
+    return TelemetryPoint(
+      timestamp: DateTime.parse(t['ts'] as String).toLocal(),
+      location: GeoPoint(
+        latitude: (t['lat'] as num).toDouble(),
+        longitude: (t['lng'] as num).toDouble(),
+      ),
+      speedMps: (t['speed_mps'] as num?)?.toDouble(),
+      accuracyMeters: (t['accuracy_m'] as num?)?.toDouble(),
+      bearingDeg: (t['bearing_deg'] as num?)?.toDouble(),
+      altitudeMeters: (t['altitude_m'] as num?)?.toDouble(),
+    );
+  }
+}

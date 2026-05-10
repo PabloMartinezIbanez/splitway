@@ -1,25 +1,38 @@
-name: namer_app
-description: A new Flutter project.
+name: splitway_mobile
+description: "Splitway — cronómetro inteligente para rutas. Iter 3: Supabase sync + Mapbox migration + integration tests."
 
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none'
 
-version: 0.0.1+1
+version: 0.3.0+1
 
 environment:
-  sdk: '>=2.19.4 <4.0.0'
+  sdk: ^3.5.0
 
 dependencies:
   flutter:
     sdk: flutter
-
-  english_words: ^4.0.0
-  provider: ^6.0.0
+  splitway_core:
+    path: ../packages/splitway_core
+  geolocator: ^14.0.0
+  go_router: ^15.0.0
+  intl: ^0.20.0
+  mapbox_maps_flutter: ^2.10.0
+  sqflite: ^2.4.0
+  supabase_flutter: ^2.8.0
+  path: ^1.9.0
+  path_provider: ^2.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  flutter_lints: ^2.0.0
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  sqflite_common_ffi: ^2.3.0
 
 flutter:
   uses-material-design: true
+  # env/local.json is gitignored. Copy env/local.example.json to env/local.json
+  # and uncomment the entry below to bundle real Mapbox/Supabase credentials.
+  assets:
+    - env/local.json
