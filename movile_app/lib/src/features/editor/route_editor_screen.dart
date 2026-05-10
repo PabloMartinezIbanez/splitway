@@ -27,6 +27,9 @@ class RouteEditorScreen extends StatefulWidget {
 }
 
 class _RouteEditorScreenState extends State<RouteEditorScreen> {
+  bool _showSectors = false;
+  String? _lastSelectedId;
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +45,14 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     super.dispose();
   }
 
-  void _onChange() => setState(() {});
+  void _onChange() {
+    final newId = widget.controller.selected?.id;
+    if (newId != _lastSelectedId) {
+      _showSectors = false;
+      _lastSelectedId = newId;
+    }
+    setState(() {});
+  }
 
   Future<void> _onCreateRoute() async {
     // Auth guard: require login before creating a new route.
@@ -150,6 +160,8 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                           route: ctrl.selected!,
                           config: widget.config,
                           onDelete: () => _confirmDelete(ctrl.selected!),
+                          showSectors: _showSectors,
+                          onToggleSectors: () => setState(() => _showSectors = !_showSectors),
                         ),
                       ),
                   ],
@@ -163,11 +175,15 @@ class _RouteDetail extends StatelessWidget {
     required this.route,
     required this.config,
     required this.onDelete,
+    required this.showSectors,
+    required this.onToggleSectors,
   });
 
   final RouteTemplate route;
   final AppConfig config;
   final VoidCallback onDelete;
+  final bool showSectors;
+  final VoidCallback onToggleSectors;
 
   @override
   Widget build(BuildContext context) {
@@ -182,9 +198,21 @@ class _RouteDetail extends StatelessWidget {
             child: SplitwayMap(
               useMapbox: config.hasMapbox,
               route: route,
+              showSectors: showSectors,
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        if (route.sectors.isNotEmpty)
+          Center(
+            child: FilledButton.tonalIcon(
+              onPressed: onToggleSectors,
+              icon: Icon(
+                showSectors ? Icons.palette : Icons.palette_outlined,
+              ),
+              label: Text(showSectors ? 'Ocultar sectores' : 'Ver sectores'),
+            ),
+          ),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -204,12 +232,11 @@ class _RouteDetail extends StatelessWidget {
         const SizedBox(height: 16),
         Text('Sectores', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
+        if (route.sectors.isEmpty)
+          Text('Sin sectores', style: theme.textTheme.bodyMedium),
         ...route.sectors.map((s) => ListTile(
               leading: CircleAvatar(child: Text('${s.order + 1}')),
               title: Text(s.label),
-              subtitle: Text(
-                'Centro: ${_fmt(s.gate.center.latitude)}, ${_fmt(s.gate.center.longitude)}',
-              ),
               dense: true,
             )),
         const SizedBox(height: 16),
@@ -231,7 +258,6 @@ class _RouteDetail extends StatelessWidget {
     );
   }
 
-  String _fmt(double v) => v.toStringAsFixed(5);
 }
 
 class _DrawingView extends StatelessWidget {
@@ -312,7 +338,7 @@ class _DrawingView extends StatelessWidget {
               useMapbox: config.hasMapbox,
               draftPath: controller.draftPath,
               draftWaypoints: controller.rawWaypoints,
-              draftSectorGates: controller.draftSectorGates,
+              draftSectorPoints: controller.draftSectorPoints,
               onTap: controller.handleMapTap,
             ),
           ),
@@ -396,7 +422,7 @@ class _DraftStatus extends StatelessWidget {
         const SizedBox(width: 8),
         _StatusChip(
           icon: Icons.flag_outlined,
-          label: '${controller.draftSectorGates.length} sectores',
+          label: '${controller.draftSectorPoints.length} sectores',
           ok: true,
           neutral: true,
         ),
