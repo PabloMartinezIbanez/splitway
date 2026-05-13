@@ -111,19 +111,20 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   }
 
   Future<void> _confirmDelete(RouteTemplate route) async {
+    final l = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Eliminar ruta'),
-        content: Text('¿Borrar "${route.name}" y todas sus sesiones?'),
+        title: Text(l.editorDeleteRouteTitle),
+        content: Text(l.editorDeleteRouteConfirm(route.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
+            child: Text(l.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Eliminar'),
+            child: Text(l.commonDelete),
           ),
         ],
       ),
@@ -135,6 +136,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final ctrl = widget.controller;
     if (ctrl.drawing) {
       return _DrawingView(
@@ -146,10 +148,10 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: buildDrawerLeading(context, widget.authService),
-        title: const Text('Editor de rutas'),
+        title: Text(l.editorTitle),
         actions: [
           IconButton(
-            tooltip: 'Nueva ruta',
+            tooltip: l.editorNewRouteTooltip,
             onPressed: _onCreateRoute,
             icon: const Icon(Icons.add_location_alt_outlined),
           ),
@@ -160,13 +162,12 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
           : ctrl.routes.isEmpty
               ? EmptyState(
                   icon: Icons.route_outlined,
-                  title: 'Aún no tienes rutas',
-                  message:
-                      'Crea tu primera ruta para empezar a cronometrar.',
+                  title: l.editorNoRoutesTitle,
+                  message: l.editorNoRoutesMessage,
                   action: FilledButton.icon(
                     onPressed: _onCreateRoute,
                     icon: const Icon(Icons.add),
-                    label: const Text('Nueva ruta'),
+                    label: Text(l.editorNewRouteButton),
                   ),
                 )
               : Column(
@@ -223,6 +224,7 @@ class _RouteDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -266,7 +268,7 @@ class _RouteDetail extends StatelessWidget {
           Text(route.description!, style: theme.textTheme.bodyMedium),
         ],
         const SizedBox(height: 16),
-        Text('Sectores', style: theme.textTheme.titleMedium),
+        Text(l.editorSectorsLabel, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         if (route.sectors.isEmpty)
           Text('Sin sectores', style: theme.textTheme.bodyMedium),
@@ -282,13 +284,13 @@ class _RouteDetail extends StatelessWidget {
             child: Icon(route.isClosed ? Icons.loop : Icons.linear_scale),
           ),
           title: Text(route.isClosed ? 'Circuito cerrado' : 'Circuito abierto'),
-          subtitle: Text('Creada el ${Formatters.dateTime(route.createdAt)}'),
+          subtitle: Text(l.editorCreatedAt(Formatters.dateTime(route.createdAt))),
         ),
         const SizedBox(height: 24),
         OutlinedButton.icon(
           onPressed: onDelete,
           icon: const Icon(Icons.delete_outline),
-          label: const Text('Eliminar ruta'),
+          label: Text(l.editorDeleteRouteButton),
         ),
       ],
     );
@@ -307,35 +309,35 @@ class _DrawingView extends StatelessWidget {
   final AppConfig config;
   final GeoPoint? initialCenter;
 
-  String _modeLabel(DrawInputMode mode) => switch (mode) {
-        DrawInputMode.appendPath => 'Toca para añadir un punto al trazado',
-        DrawInputMode.sectorPoint => 'Toca cerca de la ruta para añadir un sector',
+  String _modeLabel(AppLocalizations l, DrawInputMode mode) => switch (mode) {
+        DrawInputMode.appendPath => l.editorModeAppendPath,
+        DrawInputMode.sectorPoint => l.editorModeSectorGate,
       };
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Dibujando: ${controller.draftName}'),
+        title: Text(l.editorDrawingTitle(controller.draftName)),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          tooltip: 'Cancelar',
+          tooltip: l.editorCancelTooltip,
           onPressed: () async {
             final ok = await showDialog<bool>(
               context: context,
               builder: (dialogContext) => AlertDialog(
-                title: const Text('Cancelar dibujo'),
-                content:
-                    const Text('Se descartarán los puntos sin guardar.'),
+                title: Text(l.editorCancelDrawingTitle),
+                content: Text(l.editorCancelDrawingWarning),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),
-                    child: const Text('Volver'),
+                    child: Text(l.commonBack),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(dialogContext, true),
-                    child: const Text('Descartar'),
+                    child: Text(l.commonDiscard),
                   ),
                 ],
               ),
@@ -368,7 +370,7 @@ class _DrawingView extends StatelessWidget {
                       }
                     }
                   : null,
-              child: const Text('Guardar'),
+              child: Text(l.commonSave),
             ),
         ],
       ),
@@ -388,8 +390,7 @@ class _DrawingView extends StatelessWidget {
             _InfoBanner(
               color: theme.colorScheme.tertiaryContainer,
               icon: Icons.map_outlined,
-              message: 'Sin Mapbox token configurado. El mapa interactivo está '
-                  'desactivado; añade un token y reinicia para dibujar sobre el mapa.',
+              message: l.editorNoMapboxToken,
             )
           else if (controller.snapFailed)
             _InfoBanner(
@@ -407,7 +408,7 @@ class _DrawingView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(_modeLabel(controller.inputMode),
+                Text(_modeLabel(l, controller.inputMode),
                     style: theme.textTheme.bodyMedium),
                 const SizedBox(height: 8),
                 Wrap(
@@ -415,13 +416,13 @@ class _DrawingView extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     ChoiceChip(
-                      label: const Text('Trazado'),
+                      label: Text(l.editorSegmentPath),
                       selected: controller.inputMode == DrawInputMode.appendPath,
                       onSelected: (_) =>
                           controller.setInputMode(DrawInputMode.appendPath),
                     ),
                     ChoiceChip(
-                      label: const Text('Añadir sector'),
+                      label: Text(l.editorSegmentAddSector),
                       selected: controller.inputMode == DrawInputMode.sectorPoint,
                       onSelected: (_) =>
                           controller.setInputMode(DrawInputMode.sectorPoint),
@@ -431,7 +432,7 @@ class _DrawingView extends StatelessWidget {
                           ? null
                           : controller.undoLastPathPoint,
                       icon: const Icon(Icons.undo, size: 18),
-                      label: const Text('Deshacer punto'),
+                      label: Text(l.editorUndoPoint),
                     ),
                   ],
                 ),
@@ -453,18 +454,18 @@ class _DraftStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final l = AppLocalizations.of(context);
     return Row(
       children: [
         _StatusChip(
           icon: Icons.timeline,
-          label: '${controller.draftWaypointCount} puntos',
+          label: l.editorPathPoints(controller.draftWaypointCount),
           ok: controller.draftWaypointCount >= 2,
         ),
         const SizedBox(width: 8),
         _StatusChip(
           icon: Icons.flag_outlined,
-          label: '${controller.draftSectorPoints.length} sectores',
+          label: l.editorSectorsCount(controller.draftSectorPoints.length),
           ok: true,
           neutral: true,
         ),
@@ -508,10 +509,11 @@ class _DifficultyChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final (label, color) = switch (difficulty) {
-      RouteDifficulty.easy => ('Fácil', Colors.green),
-      RouteDifficulty.medium => ('Media', Colors.orange),
-      RouteDifficulty.hard => ('Difícil', Colors.red),
+      RouteDifficulty.easy => (l.editorDifficultyEasy, Colors.green),
+      RouteDifficulty.medium => (l.editorDifficultyMedium, Colors.orange),
+      RouteDifficulty.hard => (l.editorDifficultyHard, Colors.red),
     };
     return Chip(
       label: Text(label),
@@ -600,41 +602,42 @@ class _NewRouteDialogState extends State<_NewRouteDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Nueva ruta'),
+      title: Text(l.editorNewRouteDialogTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre',
+              decoration: InputDecoration(
+                labelText: l.editorNameLabel,
               ),
               autofocus: true,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _descCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Descripción (opcional)',
+              decoration: InputDecoration(
+                labelText: l.editorDescriptionLabel,
               ),
             ),
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text('Dificultad',
+              child: Text(l.editorDifficultyLabel,
                   style: Theme.of(context).textTheme.labelLarge),
             ),
             const SizedBox(height: 8),
             SegmentedButton<RouteDifficulty>(
-              segments: const [
+              segments: [
                 ButtonSegment(
-                    value: RouteDifficulty.easy, label: Text('Fácil')),
+                    value: RouteDifficulty.easy, label: Text(l.editorDifficultyEasy)),
                 ButtonSegment(
-                    value: RouteDifficulty.medium, label: Text('Media')),
+                    value: RouteDifficulty.medium, label: Text(l.editorDifficultyMedium)),
                 ButtonSegment(
-                    value: RouteDifficulty.hard, label: Text('Difícil')),
+                    value: RouteDifficulty.hard, label: Text(l.editorDifficultyHard)),
               ],
               selected: {_difficulty},
               onSelectionChanged: (s) => setState(() => _difficulty = s.first),
@@ -645,7 +648,7 @@ class _NewRouteDialogState extends State<_NewRouteDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          child: Text(l.commonCancel),
         ),
         FilledButton(
           onPressed: () {
@@ -661,7 +664,7 @@ class _NewRouteDialogState extends State<_NewRouteDialog> {
               ),
             );
           },
-          child: const Text('Empezar a dibujar'),
+          child: Text(l.editorStartDrawingButton),
         ),
       ],
     );

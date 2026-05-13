@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:splitway_core/splitway_core.dart';
 import 'package:splitway_mobile/src/config/app_config.dart';
@@ -110,6 +112,14 @@ void main() {
     });
 
     await tester.pumpWidget(MaterialApp(
+      locale: const Locale('es'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es'), Locale('en')],
       home: RouteEditorScreen(
         controller: controller,
         config: const AppConfig(),
