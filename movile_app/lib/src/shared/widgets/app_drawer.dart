@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../services/auth/auth_service.dart';
 import '../../services/sync/sync_service.dart';
@@ -145,7 +146,7 @@ class _LoggedInContent extends StatelessWidget {
                 label: 'Configuración',
                 onTap: () {
                   Navigator.pop(context);
-                  // TODO: navigate to settings
+                  context.go('/settings');
                 },
               ),
               _MenuItem(

@@ -10,6 +10,7 @@ import '../features/history/history_screen.dart';
 import '../features/home/home_shell.dart';
 import '../features/session/live_session_controller.dart';
 import '../features/session/live_session_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../services/auth/auth_service.dart';
 import '../services/locale/locale_controller.dart';
 import '../services/routing/routing_service.dart';
@@ -56,6 +57,11 @@ class AppRouter {
             bannerMessage: banner,
           );
         },
+      ),
+
+      GoRoute(
+        path: '/settings',
+        builder: (_, __) => SettingsScreen(localeController: localeController),
       ),
 
       // Main tabbed shell.
