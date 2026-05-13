@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:splitway_mobile/src/services/locale/locale_controller.dart';
 
@@ -60,5 +61,21 @@ void main() {
     await ctrl.setLocale(const Locale('es'));
 
     expect(notified, 0);
+  });
+
+  test('load sets Intl.defaultLocale to resolved language tag', () async {
+    final ctrl = await LocaleController.load(
+      deviceLocale: const Locale('en'),
+    );
+    expect(Intl.defaultLocale, ctrl.locale.toLanguageTag());
+    expect(Intl.defaultLocale, 'en');
+  });
+
+  test('setLocale updates Intl.defaultLocale', () async {
+    final ctrl = await LocaleController.load(
+      deviceLocale: const Locale('es'),
+    );
+    await ctrl.setLocale(const Locale('en'));
+    expect(Intl.defaultLocale, 'en');
   });
 }
