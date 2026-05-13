@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -6,6 +7,7 @@ import 'package:splitway_mobile/src/config/app_config.dart';
 import 'package:splitway_mobile/src/data/demo/demo_seed.dart';
 import 'package:splitway_mobile/src/data/local/splitway_local_database.dart';
 import 'package:splitway_mobile/src/data/repositories/local_draft_repository.dart';
+import 'package:splitway_mobile/src/services/locale/locale_controller.dart';
 
 /// End-to-end integration tests.
 /// Run with:  flutter test integration_test/app_test.dart
@@ -18,9 +20,14 @@ void main() {
 
   late SplitwayLocalDatabase database;
   late LocalDraftRepository seedRepo;
+  late LocaleController localeController;
 
   setUpAll(() async {
     await initializeDateFormatting('es_ES');
+    await initializeDateFormatting('en_US');
+    localeController = await LocaleController.load(
+      deviceLocale: const Locale('es'),
+    );
   });
 
   setUp(() async {
@@ -39,6 +46,7 @@ void main() {
       await tester.pumpWidget(SplitwayApp(
         config: const AppConfig(),
         database: database,
+        localeController: localeController,
       ));
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
@@ -52,6 +60,7 @@ void main() {
       await tester.pumpWidget(SplitwayApp(
         config: const AppConfig(),
         database: database,
+        localeController: localeController,
       ));
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
@@ -68,6 +77,7 @@ void main() {
       await tester.pumpWidget(SplitwayApp(
         config: const AppConfig(),
         database: database,
+        localeController: localeController,
       ));
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
@@ -90,6 +100,7 @@ void main() {
       await tester.pumpWidget(SplitwayApp(
         config: const AppConfig(),
         database: database,
+        localeController: localeController,
       ));
       await tester.pumpAndSettle(const Duration(seconds: 2));
 

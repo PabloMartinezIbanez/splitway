@@ -11,6 +11,7 @@ import '../features/home/home_shell.dart';
 import '../features/session/live_session_controller.dart';
 import '../features/session/live_session_screen.dart';
 import '../services/auth/auth_service.dart';
+import '../services/locale/locale_controller.dart';
 import '../services/routing/routing_service.dart';
 import '../services/sync/sync_service.dart';
 
@@ -18,6 +19,7 @@ class AppRouter {
   AppRouter({
     required this.repository,
     required this.config,
+    required this.localeController,
     this.authService,
     this.syncService,
   })  : _editorController = RouteEditorController(
@@ -30,6 +32,7 @@ class AppRouter {
 
   final LocalDraftRepository repository;
   final AppConfig config;
+  final LocaleController localeController;
   final AuthService? authService;
 
   /// Mutable so [SplitwayApp] can attach/detach after login/logout.
