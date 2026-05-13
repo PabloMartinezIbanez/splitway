@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import '../../config/app_config.dart';
 import '../../routing/app_router.dart';
@@ -137,7 +138,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
                     final allowed = await requireAuth(
                       context,
                       widget.authService,
-                      message: 'Inicia sesión para grabar una sesión',
+                      message: AppLocalizations.of(context).loginBannerDefault,
                     );
                     if (!allowed || !mounted) return;
                     // ignore: discarded_futures

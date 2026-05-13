@@ -126,7 +126,7 @@ class AppRouter {
 Future<bool> requireAuth(
   BuildContext context,
   AuthService? authService, {
-  String? message,
+  required String message,
 }) async {
   if (authService == null || authService.isLoggedIn) return true;
 
@@ -134,7 +134,7 @@ Future<bool> requireAuth(
     MaterialPageRoute(
       builder: (_) => LoginScreen(
         authService: authService,
-        bannerMessage: message ?? 'Inicia sesión para continuar',
+        bannerMessage: message,
       ),
     ),
   );

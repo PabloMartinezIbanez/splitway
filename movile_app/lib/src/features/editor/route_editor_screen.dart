@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:splitway_core/splitway_core.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import '../../config/app_config.dart';
 import '../../routing/app_router.dart';
@@ -61,7 +62,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     final allowed = await requireAuth(
       context,
       widget.authService,
-      message: 'Inicia sesión para crear una ruta',
+      message: AppLocalizations.of(context).loginBannerDefault,
     );
     if (!allowed || !mounted) return;
 
