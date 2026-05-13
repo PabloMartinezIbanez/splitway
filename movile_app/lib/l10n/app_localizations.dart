@@ -620,6 +620,48 @@ abstract class AppLocalizations {
   /// **'Hard'**
   String get editorDifficultyHard;
 
+  /// No description provided for @editorHideSectors.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide sectors'**
+  String get editorHideSectors;
+
+  /// No description provided for @editorShowSectors.
+  ///
+  /// In en, this message translates to:
+  /// **'Show sectors'**
+  String get editorShowSectors;
+
+  /// No description provided for @editorNoSectorsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'No sectors'**
+  String get editorNoSectorsHint;
+
+  /// No description provided for @editorClosedLoop.
+  ///
+  /// In en, this message translates to:
+  /// **'Closed loop'**
+  String get editorClosedLoop;
+
+  /// No description provided for @editorOpenRoute.
+  ///
+  /// In en, this message translates to:
+  /// **'Open route'**
+  String get editorOpenRoute;
+
+  /// No description provided for @editorRouteSavedSnack.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved \"{name}\"'**
+  String editorRouteSavedSnack(String name);
+
+  /// No description provided for @editorSnapFailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach the server to snap the route to roads. Showing straight segments until the connection is restored.'**
+  String get editorSnapFailedMessage;
+
   /// No description provided for @editorNewRouteDialogTitle.
   ///
   /// In en, this message translates to:

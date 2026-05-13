@@ -248,7 +248,7 @@ class _RouteDetail extends StatelessWidget {
               icon: Icon(
                 showSectors ? Icons.palette : Icons.palette_outlined,
               ),
-              label: Text(showSectors ? 'Ocultar sectores' : 'Ver sectores'),
+              label: Text(showSectors ? l.editorHideSectors : l.editorShowSectors),
             ),
           ),
         const SizedBox(height: 16),
@@ -271,7 +271,7 @@ class _RouteDetail extends StatelessWidget {
         Text(l.editorSectorsLabel, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         if (route.sectors.isEmpty)
-          Text('Sin sectores', style: theme.textTheme.bodyMedium),
+          Text(l.editorNoSectorsHint, style: theme.textTheme.bodyMedium),
         ...route.sectors.map((s) => ListTile(
               leading: CircleAvatar(child: Text('${s.order + 1}')),
               title: Text(s.label),
@@ -283,7 +283,7 @@ class _RouteDetail extends StatelessWidget {
           leading: CircleAvatar(
             child: Icon(route.isClosed ? Icons.loop : Icons.linear_scale),
           ),
-          title: Text(route.isClosed ? 'Circuito cerrado' : 'Circuito abierto'),
+          title: Text(route.isClosed ? l.editorClosedLoop : l.editorOpenRoute),
           subtitle: Text(l.editorCreatedAt(Formatters.dateTime(route.createdAt))),
         ),
         const SizedBox(height: 24),
@@ -364,7 +364,7 @@ class _DrawingView extends StatelessWidget {
                       if (saved != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Guardada "${saved.name}"'),
+                            content: Text(l.editorRouteSavedSnack(saved.name)),
                           ),
                         );
                       }
@@ -397,9 +397,7 @@ class _DrawingView extends StatelessWidget {
               color: theme.colorScheme.errorContainer,
               icon: Icons.wifi_off_outlined,
               iconColor: theme.colorScheme.onErrorContainer,
-              message: 'No se pudo conectar con el servidor para ajustar la '
-                  'ruta a las carreteras. Se muestran segmentos rectos hasta '
-                  'que la conexión se restablezca.',
+              message: l.editorSnapFailedMessage,
               textColor: theme.colorScheme.onErrorContainer,
             ),
           Container(

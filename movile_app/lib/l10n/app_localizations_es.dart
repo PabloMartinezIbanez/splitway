@@ -310,6 +310,30 @@ class AppLocalizationsEs extends AppLocalizations {
   String get editorDifficultyHard => 'Difícil';
 
   @override
+  String get editorHideSectors => 'Ocultar sectores';
+
+  @override
+  String get editorShowSectors => 'Ver sectores';
+
+  @override
+  String get editorNoSectorsHint => 'Sin sectores';
+
+  @override
+  String get editorClosedLoop => 'Circuito cerrado';
+
+  @override
+  String get editorOpenRoute => 'Circuito abierto';
+
+  @override
+  String editorRouteSavedSnack(String name) {
+    return 'Guardada \"$name\"';
+  }
+
+  @override
+  String get editorSnapFailedMessage =>
+      'No se pudo conectar con el servidor para ajustar la ruta a las carreteras. Se muestran segmentos rectos hasta que la conexión se restablezca.';
+
+  @override
   String get editorNewRouteDialogTitle => 'Nueva ruta';
 
   @override

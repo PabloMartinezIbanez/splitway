@@ -309,6 +309,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editorDifficultyHard => 'Hard';
 
   @override
+  String get editorHideSectors => 'Hide sectors';
+
+  @override
+  String get editorShowSectors => 'Show sectors';
+
+  @override
+  String get editorNoSectorsHint => 'No sectors';
+
+  @override
+  String get editorClosedLoop => 'Closed loop';
+
+  @override
+  String get editorOpenRoute => 'Open route';
+
+  @override
+  String editorRouteSavedSnack(String name) {
+    return 'Saved \"$name\"';
+  }
+
+  @override
+  String get editorSnapFailedMessage =>
+      'Could not reach the server to snap the route to roads. Showing straight segments until the connection is restored.';
+
+  @override
   String get editorNewRouteDialogTitle => 'New route';
 
   @override
