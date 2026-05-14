@@ -238,7 +238,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
             // Speed selector
             Row(
               children: [
-                Text('Velocidad:',
+                Text(l.sessionSpeedLabel,
                     style: Theme.of(context).textTheme.labelMedium),
                 const SizedBox(width: 8),
                 Expanded(

@@ -541,6 +541,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sessionAutoLap => 'Auto vuelta';
 
   @override
+  String get sessionSpeedLabel => 'Velocidad:';
+
+  @override
   String get settingsTitle => 'Ajustes';
 
   @override

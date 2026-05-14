@@ -180,6 +180,7 @@
   "sessionSimulatePoint": "Simulate point",
   "sessionPauseAuto": "Pause auto",
   "sessionAutoLap": "Auto lap",
+  "sessionSpeedLabel": "Speed:",
 
   "settingsTitle": "Settings",
   "settingsLanguageSection": "Language",

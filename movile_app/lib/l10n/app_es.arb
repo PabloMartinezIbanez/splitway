@@ -162,6 +162,7 @@
   "sessionSimulatePoint": "Simular punto",
   "sessionPauseAuto": "Parar auto",
   "sessionAutoLap": "Auto vuelta",
+  "sessionSpeedLabel": "Velocidad:",
 
   "settingsTitle": "Ajustes",
   "settingsLanguageSection": "Idioma",

@@ -1010,6 +1010,12 @@ abstract class AppLocalizations {
   /// **'Auto lap'**
   String get sessionAutoLap;
 
+  /// No description provided for @sessionSpeedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed:'**
+  String get sessionSpeedLabel;
+
   /// No description provided for @settingsTitle.
   ///
   /// In en, this message translates to:

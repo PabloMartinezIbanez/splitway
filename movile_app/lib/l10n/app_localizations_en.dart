@@ -540,6 +540,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sessionAutoLap => 'Auto lap';
 
   @override
+  String get sessionSpeedLabel => 'Speed:';
+
+  @override
   String get settingsTitle => 'Settings';
 
   @override
