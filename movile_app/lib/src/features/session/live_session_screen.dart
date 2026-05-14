@@ -315,9 +315,14 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           ListTile(
             leading: CircleAvatar(child: Text('${lap.lapNumber}')),
             title: Text(Formatters.duration(lap.duration)),
-            subtitle: Text(
-              '${Formatters.distanceMeters(lap.distanceMeters)} · ${Formatters.speedMps(lap.avgSpeedMps)}',
-            ),
+            subtitle: Text(() {
+                  final (dv, isKm) = Formatters.distanceMeters(lap.distanceMeters);
+                  final dist = isKm
+                      ? l.unitKilometers(dv.toStringAsFixed(2))
+                      : l.unitMeters(dv.toStringAsFixed(0));
+                  final speed = l.unitKmh(Formatters.speedMps(lap.avgSpeedMps).toStringAsFixed(1));
+                  return '$dist · $speed';
+                }()),
             trailing: lap.completed
                 ? const Icon(Icons.check_circle, color: Colors.green)
                 : const Icon(Icons.timer_off, color: Colors.orange),
@@ -434,10 +439,14 @@ class _StatsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final (dv, isKm) = Formatters.distanceMeters(session.totalDistanceMeters);
+    final distStr = isKm
+        ? l.unitKilometers(dv.toStringAsFixed(2))
+        : l.unitMeters(dv.toStringAsFixed(0));
     final children = [
-      _Stat(l.sessionDistanceLabel, Formatters.distanceMeters(session.totalDistanceMeters)),
-      _Stat(l.sessionMaxSpeedLabel, Formatters.speedMps(session.maxSpeedMps)),
-      _Stat(l.sessionAvgSpeedLabel, Formatters.speedMps(session.avgSpeedMps)),
+      _Stat(l.sessionDistanceLabel, distStr),
+      _Stat(l.sessionMaxSpeedLabel, l.unitKmh(Formatters.speedMps(session.maxSpeedMps).toStringAsFixed(1))),
+      _Stat(l.sessionAvgSpeedLabel, l.unitKmh(Formatters.speedMps(session.avgSpeedMps).toStringAsFixed(1))),
       _Stat(l.sessionLapsCountLabel, '${session.laps.length}'),
     ];
     return GridView.count(

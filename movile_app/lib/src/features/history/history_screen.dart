@@ -257,9 +257,14 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                       ListTile(
                         leading: CircleAvatar(child: Text('${lap.lapNumber}')),
                         title: Text(Formatters.duration(lap.duration)),
-                        subtitle: Text(
-                          '${Formatters.distanceMeters(lap.distanceMeters)} · ${Formatters.speedMps(lap.avgSpeedMps)}',
-                        ),
+                        subtitle: Text(() {
+                            final (dv, isKm) = Formatters.distanceMeters(lap.distanceMeters);
+                            final dist = isKm
+                                ? l.unitKilometers(dv.toStringAsFixed(2))
+                                : l.unitMeters(dv.toStringAsFixed(0));
+                            final speed = l.unitKmh(Formatters.speedMps(lap.avgSpeedMps).toStringAsFixed(1));
+                            return '$dist · $speed';
+                          }()),
                         trailing: lap.completed
                             ? const Icon(Icons.check_circle, color: Colors.green)
                             : const Icon(Icons.timer_off, color: Colors.orange),
@@ -284,7 +289,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                         subtitle: Text(
                           l.historySectorSubtitle(
                             sec.lapNumber,
-                            Formatters.speedMps(sec.avgSpeedMps),
+                            l.unitKmh(Formatters.speedMps(sec.avgSpeedMps).toStringAsFixed(1)),
                           ),
                         ),
                         trailing: Text(Formatters.duration(sec.duration)),
@@ -303,10 +308,14 @@ class _SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final (dv, isKm) = Formatters.distanceMeters(session.totalDistanceMeters);
+    final distStr = isKm
+        ? l.unitKilometers(dv.toStringAsFixed(2))
+        : l.unitMeters(dv.toStringAsFixed(0));
     final entries = [
-      (l.historyDistanceLabel, Formatters.distanceMeters(session.totalDistanceMeters)),
-      (l.historyMaxSpeedLabel, Formatters.speedMps(session.maxSpeedMps)),
-      (l.historyAvgSpeedLabel, Formatters.speedMps(session.avgSpeedMps)),
+      (l.historyDistanceLabel, distStr),
+      (l.historyMaxSpeedLabel, l.unitKmh(Formatters.speedMps(session.maxSpeedMps).toStringAsFixed(1))),
+      (l.historyAvgSpeedLabel, l.unitKmh(Formatters.speedMps(session.avgSpeedMps).toStringAsFixed(1))),
     ];
     return Row(
       children: [
