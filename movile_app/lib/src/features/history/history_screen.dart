@@ -118,8 +118,9 @@ class _SessionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final best = session.bestLap;
-    final bestLapSuffix =
-        best != null ? ' · ${Formatters.duration(best.duration)}' : '';
+    final bestLapSuffix = best != null
+        ? l.historyBestLapSuffix(Formatters.duration(best.duration))
+        : '';
     return Card(
       child: ListTile(
         title: Text(route?.name ?? l.historyDeletedRoute),

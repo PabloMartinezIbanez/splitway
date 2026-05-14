@@ -170,5 +170,9 @@
 
   "unitMeters": "{value} m",
   "unitKilometers": "{value} km",
-  "unitKmh": "{value} km/h"
+  "unitKmh": "{value} km/h",
+
+  "mapNoRoute": "Sin ruta",
+
+  "historyBestLapSuffix": " · mejor {duration}"
 }

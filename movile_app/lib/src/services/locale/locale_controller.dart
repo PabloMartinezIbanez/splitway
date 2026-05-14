@@ -15,6 +15,14 @@ class LocaleController extends ChangeNotifier {
 
   static const Locale _fallback = Locale('es');
 
+  static const Map<String, String> _intlTags = {
+    'es': 'es_ES',
+    'en': 'en_US',
+  };
+
+  static String _intlTagFor(Locale locale) =>
+      _intlTags[locale.languageCode] ?? locale.toLanguageTag();
+
   Locale _locale;
   final SharedPreferences _prefs;
 
@@ -24,7 +32,7 @@ class LocaleController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(_prefsKey);
     final resolved = _resolve(stored, deviceLocale);
-    Intl.defaultLocale = resolved.toLanguageTag();
+    Intl.defaultLocale = _intlTagFor(resolved);
     return LocaleController._(resolved, prefs);
   }
 
@@ -43,7 +51,7 @@ class LocaleController extends ChangeNotifier {
   Future<void> setLocale(Locale next) async {
     if (next == _locale) return;
     _locale = next;
-    Intl.defaultLocale = next.toLanguageTag();
+    Intl.defaultLocale = _intlTagFor(next);
     await _prefs.setString(_prefsKey, next.languageCode);
     notifyListeners();
   }

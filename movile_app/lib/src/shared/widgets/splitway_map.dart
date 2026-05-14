@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Image;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mbx;
 import 'package:splitway_core/splitway_core.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import 'route_map_painter.dart';
 import 'sector_segments.dart';
@@ -102,7 +103,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
     if (route == null) {
       return ColoredBox(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: const Center(child: Text('Sin ruta')),
+        child: Center(child: Text(AppLocalizations.of(context).mapNoRoute)),
       );
     }
     return CustomPaint(

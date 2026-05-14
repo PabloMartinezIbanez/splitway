@@ -1051,6 +1051,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{value} km/h'**
   String unitKmh(String value);
+
+  /// No description provided for @mapNoRoute.
+  ///
+  /// In en, this message translates to:
+  /// **'No route'**
+  String get mapNoRoute;
+
+  /// No description provided for @historyBestLapSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **' · best {duration}'**
+  String historyBestLapSuffix(String duration);
 }
 
 class _AppLocalizationsDelegate

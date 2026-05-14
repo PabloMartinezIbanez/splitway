@@ -37,6 +37,7 @@ class AuthService extends ChangeNotifier {
   }
 
   void clearError() {
+    if (_errorCode == null) return;
     _errorCode = null;
     notifyListeners();
   }

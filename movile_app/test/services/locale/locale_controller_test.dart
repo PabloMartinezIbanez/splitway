@@ -64,11 +64,10 @@ void main() {
   });
 
   test('load sets Intl.defaultLocale to resolved language tag', () async {
-    final ctrl = await LocaleController.load(
+    await LocaleController.load(
       deviceLocale: const Locale('en'),
     );
-    expect(Intl.defaultLocale, ctrl.locale.toLanguageTag());
-    expect(Intl.defaultLocale, 'en');
+    expect(Intl.defaultLocale, 'en_US');
   });
 
   test('setLocale updates Intl.defaultLocale', () async {
@@ -76,6 +75,6 @@ void main() {
       deviceLocale: const Locale('es'),
     );
     await ctrl.setLocale(const Locale('en'));
-    expect(Intl.defaultLocale, 'en');
+    expect(Intl.defaultLocale, 'en_US');
   });
 }

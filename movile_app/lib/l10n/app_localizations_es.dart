@@ -566,4 +566,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String unitKmh(String value) {
     return '$value km/h';
   }
+
+  @override
+  String get mapNoRoute => 'Sin ruta';
+
+  @override
+  String historyBestLapSuffix(String duration) {
+    return ' · mejor $duration';
+  }
 }

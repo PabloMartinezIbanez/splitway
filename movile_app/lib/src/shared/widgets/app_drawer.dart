@@ -377,6 +377,14 @@ class _LoggedOutContent extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
             children: [
               _MenuItem(
+                icon: Icons.settings_outlined,
+                label: l.drawerSettings,
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/settings');
+                },
+              ),
+              _MenuItem(
                 icon: Icons.help_outline,
                 label: l.drawerHelp,
                 onTap: () => Navigator.pop(context),

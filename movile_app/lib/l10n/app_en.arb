@@ -191,5 +191,10 @@
   "unitKilometers": "{value} km",
   "@unitKilometers": { "placeholders": { "value": { "type": "String" } } },
   "unitKmh": "{value} km/h",
-  "@unitKmh": { "placeholders": { "value": { "type": "String" } } }
+  "@unitKmh": { "placeholders": { "value": { "type": "String" } } },
+
+  "mapNoRoute": "No route",
+
+  "historyBestLapSuffix": " · best {duration}",
+  "@historyBestLapSuffix": { "placeholders": { "duration": { "type": "String" } } }
 }
