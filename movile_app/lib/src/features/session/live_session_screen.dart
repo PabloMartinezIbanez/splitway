@@ -49,37 +49,39 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final ctrl = widget.controller;
     return Scaffold(
       appBar: AppBar(
         leading: buildDrawerLeading(context, widget.authService),
-        title: const Text('Sesión en vivo'),
+        title: Text(l.sessionTitle),
       ),
       body: switch (ctrl.stage) {
-        LiveSessionStage.selecting => _buildEmpty(),
-        LiveSessionStage.ready => _buildReady(ctrl),
-        LiveSessionStage.running => _buildRunning(ctrl),
-        LiveSessionStage.finished => _buildFinished(ctrl),
+        LiveSessionStage.selecting => _buildEmpty(context),
+        LiveSessionStage.ready => _buildReady(context, ctrl),
+        LiveSessionStage.running => _buildRunning(context, ctrl),
+        LiveSessionStage.finished => _buildFinished(context, ctrl),
       },
     );
   }
 
-  Widget _buildEmpty() {
-    return const EmptyState(
+  Widget _buildEmpty(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return EmptyState(
       icon: Icons.play_circle_outline,
-      title: 'No hay rutas para correr',
-      message:
-          'Crea una ruta primero en la pestaña Editor para poder grabar una sesión.',
+      title: l.sessionNoRoutesTitle,
+      message: l.sessionNoRoutesMessage,
     );
   }
 
-  Widget _buildReady(LiveSessionController ctrl) {
+  Widget _buildReady(BuildContext context, LiveSessionController ctrl) {
+    final l = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Selecciona una ruta',
+          Text(l.sessionSelectRoute,
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
@@ -106,20 +108,20 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
               ),
             ),
           const SizedBox(height: 16),
-          Text('Fuente de telemetría',
+          Text(l.sessionTelemetrySource,
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           SegmentedButton<TrackingSource>(
-            segments: const [
+            segments: [
               ButtonSegment(
                 value: TrackingSource.simulated,
-                label: Text('Simulada'),
-                icon: Icon(Icons.science_outlined),
+                label: Text(l.sessionSourceSimulated),
+                icon: const Icon(Icons.science_outlined),
               ),
               ButtonSegment(
                 value: TrackingSource.realGps,
-                label: Text('GPS real'),
-                icon: Icon(Icons.gps_fixed),
+                label: Text(l.sessionSourceRealGps),
+                icon: const Icon(Icons.gps_fixed),
               ),
             ],
             selected: {ctrl.source},
@@ -145,16 +147,13 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
                     ctrl.startSession();
                   },
             icon: const Icon(Icons.play_arrow),
-            label: const Text('Comenzar grabación'),
+            label: Text(l.sessionStartButton),
           ),
           const SizedBox(height: 8),
           Text(
             ctrl.source == TrackingSource.simulated
-                ? 'En modo simulada: usa "Simular punto" o "Auto vuelta" para '
-                    'ejercitar el motor sin moverte.'
-                : 'En modo GPS real: el motor recibe directamente las muestras '
-                    'del GPS del dispositivo. Sal a un sitio con cielo abierto '
-                    'antes de comenzar para evitar fixes ruidosos.',
+                ? l.sessionSimulatedHint
+                : l.sessionRealGpsHint,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
@@ -164,7 +163,8 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
     );
   }
 
-  Widget _buildRunning(LiveSessionController ctrl) {
+  Widget _buildRunning(BuildContext context, LiveSessionController ctrl) {
+    final l = AppLocalizations.of(context);
     final tracker = ctrl.tracker!;
     final snapshot = tracker.snapshot;
     final route = ctrl.selected!;
@@ -217,7 +217,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
                   child: OutlinedButton.icon(
                     onPressed: ctrl.simulateOnePoint,
                     icon: const Icon(Icons.fast_forward),
-                    label: const Text('Simular punto'),
+                    label: Text(l.sessionSimulatePoint),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -227,8 +227,9 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
                     icon: Icon(ctrl.isAutoSimulating
                         ? Icons.pause
                         : Icons.autorenew),
-                    label: Text(
-                        ctrl.isAutoSimulating ? 'Parar auto' : 'Auto vuelta'),
+                    label: Text(ctrl.isAutoSimulating
+                        ? l.sessionPauseAuto
+                        : l.sessionAutoLap),
                   ),
                 ),
               ],
@@ -262,14 +263,16 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: () async {
+              final savedText = l.sessionSavedSnackBar;
+              final messenger = ScaffoldMessenger.of(context);
               final session = await ctrl.finishSession();
               if (!mounted || session == null) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sesión guardada')),
+              messenger.showSnackBar(
+                SnackBar(content: Text(savedText)),
               );
             },
             icon: const Icon(Icons.stop),
-            label: const Text('Finalizar y guardar'),
+            label: Text(l.sessionFinishButton),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.redAccent,
               minimumSize: const Size.fromHeight(48),
@@ -280,16 +283,17 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
     );
   }
 
-  Widget _buildFinished(LiveSessionController ctrl) {
+  Widget _buildFinished(BuildContext context, LiveSessionController ctrl) {
+    final l = AppLocalizations.of(context);
     final result = ctrl.result!;
     final route = ctrl.selected!;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Sesión completa',
+        Text(l.sessionCompleteTitle,
             style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 4),
-        Text('Ruta: ${route.name}'),
+        Text(l.sessionRouteLabel(route.name)),
         const SizedBox(height: 16),
         Card(
           clipBehavior: Clip.antiAlias,
@@ -305,7 +309,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
         const SizedBox(height: 16),
         _StatsGrid(session: result),
         const SizedBox(height: 16),
-        Text('Vueltas',
+        Text(l.sessionLapsLabel,
             style: Theme.of(context).textTheme.titleMedium),
         for (final lap in result.laps)
           ListTile(
@@ -322,7 +326,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
         FilledButton.icon(
           onPressed: ctrl.resetForNewSession,
           icon: const Icon(Icons.refresh),
-          label: const Text('Nueva sesión'),
+          label: Text(l.sessionNewSessionButton),
         ),
       ],
     );
@@ -336,27 +340,28 @@ class _MetricsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
           child: _MetricCard(
-            label: 'Vuelta actual',
+            label: l.sessionCurrentLapLabel,
             value: snapshot.currentLap == 0
-                ? '–'
-                : '#${snapshot.currentLap}',
+                ? l.sessionNoLapYet
+                : l.sessionLapNumber(snapshot.currentLap),
           ),
         ),
         Expanded(
           child: _MetricCard(
-            label: 'Tiempo en vuelta',
+            label: l.sessionLapTimeLabel,
             value: Formatters.duration(snapshot.currentLapElapsed),
           ),
         ),
         Expanded(
           child: _MetricCard(
-            label: 'Mejor vuelta',
+            label: l.sessionBestLapLabel,
             value: snapshot.bestLap == null
-                ? '–'
+                ? l.sessionNoLapYet
                 : Formatters.duration(snapshot.bestLap!),
           ),
         ),
@@ -398,12 +403,13 @@ class _LastEventTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final last = snapshot.lastCrossedSectorId;
     if (last == null) {
       return Text(
         snapshot.status == TrackingStatus.awaitingStart
-            ? 'Esperando primer cruce de meta…'
-            : 'Cruzando sectores…',
+            ? l.sessionAwaitingStart
+            : l.sessionCrossingSectors,
         style: Theme.of(context).textTheme.bodyMedium,
       );
     }
@@ -411,7 +417,7 @@ class _LastEventTile extends StatelessWidget {
       children: [
         const Icon(Icons.flag_circle_outlined, size: 18),
         const SizedBox(width: 6),
-        Text('Último sector: $last'),
+        Text(l.sessionLastSector(last)),
         const Spacer(),
         if (snapshot.lastSectorTime != null)
           Text(Formatters.duration(snapshot.lastSectorTime!)),
@@ -427,11 +433,12 @@ class _StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final children = [
-      _Stat('Distancia', Formatters.distanceMeters(session.totalDistanceMeters)),
-      _Stat('Vel. máx.', Formatters.speedMps(session.maxSpeedMps)),
-      _Stat('Vel. media', Formatters.speedMps(session.avgSpeedMps)),
-      _Stat('Vueltas', '${session.laps.length}'),
+      _Stat(l.sessionDistanceLabel, Formatters.distanceMeters(session.totalDistanceMeters)),
+      _Stat(l.sessionMaxSpeedLabel, Formatters.speedMps(session.maxSpeedMps)),
+      _Stat(l.sessionAvgSpeedLabel, Formatters.speedMps(session.avgSpeedMps)),
+      _Stat(l.sessionLapsCountLabel, '${session.laps.length}'),
     ];
     return GridView.count(
       crossAxisCount: 2,
@@ -477,30 +484,28 @@ class _PermissionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final (color, icon, text) = switch (status) {
       LocationPermissionStatus.granted => (
           Colors.green,
           Icons.check_circle_outline,
-          'Permiso de ubicación concedido.',
+          l.sessionPermissionGranted,
         ),
       LocationPermissionStatus.denied => (
           Colors.orange,
           Icons.warning_amber_rounded,
-          'Permiso de ubicación denegado. Acepta el diálogo del sistema o '
-              'cambia a "Simulada".',
+          l.sessionPermissionDenied,
         ),
       LocationPermissionStatus.permanentlyDenied => (
           Colors.red,
           Icons.block,
-          'Permiso bloqueado permanentemente. Actívalo manualmente en los '
-              'ajustes del sistema.',
+          l.sessionPermissionPermanentlyDenied,
         ),
       LocationPermissionStatus.servicesDisabled => (
           Colors.red,
           Icons.location_off,
-          'Servicios de ubicación desactivados. Enciéndelos en los '
-              'ajustes del sistema.',
+          l.sessionServicesDisabled,
         ),
     };
     return Container(
@@ -535,6 +540,7 @@ class _GpsStatusTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final last = telemetryCount == 0 ? null : tracker.ingested.last;
     return Card(
@@ -549,21 +555,23 @@ class _GpsStatusTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'GPS real · $telemetryCount muestras',
+                    l.sessionGpsStatus(telemetryCount),
                     style: theme.textTheme.titleSmall,
                   ),
                   if (last != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Precisión: ${last.accuracyMeters?.toStringAsFixed(1) ?? '–'} m'
-                      ' · ${last.location.latitude.toStringAsFixed(5)}, '
-                      '${last.location.longitude.toStringAsFixed(5)}',
+                      l.sessionGpsAccuracy(
+                        last.accuracyMeters?.toStringAsFixed(1) ?? '–',
+                        last.location.latitude.toStringAsFixed(5),
+                        last.location.longitude.toStringAsFixed(5),
+                      ),
                       style: theme.textTheme.bodySmall,
                     ),
                   ] else ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Esperando primer fix…',
+                      l.sessionAwaitingFirstFix,
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
