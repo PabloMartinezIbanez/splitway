@@ -146,6 +146,14 @@ void main() {
     });
 
     await tester.pumpWidget(MaterialApp(
+      locale: const Locale('es'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es'), Locale('en')],
       home: HistoryScreen(repository: boot.repo),
     ));
     for (var i = 0; i < 5; i++) {
