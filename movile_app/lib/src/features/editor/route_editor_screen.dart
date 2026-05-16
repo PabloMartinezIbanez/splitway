@@ -572,7 +572,7 @@ class _EditRouteDialogState extends State<_EditRouteDialog> {
   }
 }
 
-class _DrawingView extends StatelessWidget {
+class _DrawingView extends StatefulWidget {
   const _DrawingView({
     required this.controller,
     required this.config,
@@ -583,6 +583,48 @@ class _DrawingView extends StatelessWidget {
   final AppConfig config;
   final GeoPoint? initialCenter;
 
+  @override
+  State<_DrawingView> createState() => _DrawingViewState();
+}
+
+class _DrawingViewState extends State<_DrawingView> {
+  final ValueNotifier<GeoPoint?> _flyToNotifier = ValueNotifier(null);
+
+  @override
+  void dispose() {
+    _flyToNotifier.dispose();
+    super.dispose();
+  }
+
+  Future<void> _centerOnUser() async {
+    try {
+      final servicesOn = await Geolocator.isLocationServiceEnabled();
+      if (!servicesOn) return;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+      _flyToNotifier.value = GeoPoint(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } catch (_) {
+      // Silently ignore — GPS unavailable.
+    }
+  }
+
   String _modeLabel(AppLocalizations l, DrawInputMode mode) => switch (mode) {
         DrawInputMode.appendPath => l.editorModeAppendPath,
         DrawInputMode.sectorPoint => l.editorModeSectorGate,
@@ -592,6 +634,7 @@ class _DrawingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final controller = widget.controller;
     return Scaffold(
       appBar: AppBar(
         title: Text(l.editorDrawingTitle(controller.draftName)),
@@ -651,16 +694,30 @@ class _DrawingView extends StatelessWidget {
       body: Column(
         children: [
           Expanded(
-            child: SplitwayMap(
-              useMapbox: config.hasMapbox,
-              initialCenter: initialCenter,
-              draftPath: controller.draftPath,
-              draftWaypoints: controller.rawWaypoints,
-              draftSectorPoints: controller.draftSectorPoints,
-              onTap: controller.handleMapTap,
+            child: Stack(
+              children: [
+                SplitwayMap(
+                  useMapbox: widget.config.hasMapbox,
+                  initialCenter: widget.initialCenter,
+                  flyToNotifier: _flyToNotifier,
+                  draftPath: controller.draftPath,
+                  draftWaypoints: controller.rawWaypoints,
+                  draftSectorPoints: controller.draftSectorPoints,
+                  onTap: controller.handleMapTap,
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: FloatingActionButton.small(
+                    heroTag: 'center_on_user',
+                    onPressed: _centerOnUser,
+                    child: const Icon(Icons.my_location),
+                  ),
+                ),
+              ],
             ),
           ),
-          if (!config.hasMapbox)
+          if (!widget.config.hasMapbox)
             _InfoBanner(
               color: theme.colorScheme.tertiaryContainer,
               icon: Icons.map_outlined,

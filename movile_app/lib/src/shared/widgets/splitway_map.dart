@@ -24,6 +24,7 @@ class SplitwayMap extends StatefulWidget {
     this.highlightSectorId,
     this.showSectors = false,
     this.initialCenter,
+    this.flyToNotifier,
     this.onTap,
     this.onLongPress,
     this.styleUri,
@@ -43,6 +44,8 @@ class SplitwayMap extends StatefulWidget {
   final bool showSectors;
   /// Initial camera center (e.g. user GPS location). Falls back to Madrid if null.
   final GeoPoint? initialCenter;
+  /// When this notifier fires, the map flies to the given point.
+  final ValueNotifier<GeoPoint?>? flyToNotifier;
   final ValueChanged<GeoPoint>? onTap;
   final ValueChanged<GeoPoint>? onLongPress;
   final String? styleUri;
@@ -57,13 +60,34 @@ class _SplitwayMapState extends State<SplitwayMap> {
   mbx.CircleAnnotationManager? _circleManager;
 
   @override
+  void initState() {
+    super.initState();
+    widget.flyToNotifier?.addListener(_onFlyToChanged);
+  }
+
+  @override
   void dispose() {
+    widget.flyToNotifier?.removeListener(_onFlyToChanged);
     final map = _map;
     if (map != null) {
       map.removeInteraction('splitway-tap');
       map.removeInteraction('splitway-long-tap');
     }
     super.dispose();
+  }
+
+  void _onFlyToChanged() {
+    final target = widget.flyToNotifier?.value;
+    if (target == null || _map == null) return;
+    _map!.flyTo(
+      mbx.CameraOptions(
+        center: mbx.Point(
+          coordinates: mbx.Position(target.longitude, target.latitude),
+        ),
+        zoom: 15,
+      ),
+      mbx.MapAnimationOptions(duration: 800),
+    );
   }
 
   @override
@@ -81,6 +105,10 @@ class _SplitwayMapState extends State<SplitwayMap> {
   @override
   void didUpdateWidget(covariant SplitwayMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.flyToNotifier != widget.flyToNotifier) {
+      oldWidget.flyToNotifier?.removeListener(_onFlyToChanged);
+      widget.flyToNotifier?.addListener(_onFlyToChanged);
+    }
     if (!widget.useMapbox) return;
 
     final routeChanged = oldWidget.route != widget.route;
