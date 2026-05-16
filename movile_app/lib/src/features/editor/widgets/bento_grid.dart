@@ -63,7 +63,7 @@ class BentoTileWide extends StatelessWidget {
     required this.value,
     this.iconColor,
     this.onTap,
-    this.showChevron = false,
+    this.trailingLabel,
     this.trailingText,
   });
 
@@ -72,8 +72,9 @@ class BentoTileWide extends StatelessWidget {
   final String value;
   final Color? iconColor;
   final VoidCallback? onTap;
-  final bool showChevron;
-  /// Text shown to the right before the chevron (e.g. best lap time).
+  /// Label above the trailing text (e.g. "Mejor").
+  final String? trailingLabel;
+  /// Text shown to the right (e.g. best lap time or "—").
   final String? trailingText;
 
   @override
@@ -87,8 +88,6 @@ class BentoTileWide extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: iconColor ?? theme.colorScheme.primary),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,13 +103,29 @@ class BentoTileWide extends StatelessWidget {
               ),
             ),
             if (trailingText != null) ...[
-              Text(trailingText!, style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              )),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 14, color: iconColor ?? theme.colorScheme.primary),
+                      const SizedBox(width: 4),
+                      if (trailingLabel != null)
+                        Text(trailingLabel!, style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        )),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(trailingText!, style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  )),
+                ],
+              ),
               const SizedBox(width: 4),
             ],
-            if (showChevron)
-              Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
+            Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
           ],
         ),
       ),
