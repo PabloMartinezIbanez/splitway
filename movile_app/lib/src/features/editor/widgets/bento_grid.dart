@@ -27,7 +27,7 @@ class BentoTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 20, color: iconColor ?? theme.colorScheme.primary),
@@ -38,7 +38,7 @@ class BentoTile extends StatelessWidget {
             const SizedBox(height: 2),
             Text(value, style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
-            )),
+            ), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -64,6 +64,7 @@ class BentoTileWide extends StatelessWidget {
     this.iconColor,
     this.onTap,
     this.showChevron = false,
+    this.trailingText,
   });
 
   final IconData icon;
@@ -72,6 +73,8 @@ class BentoTileWide extends StatelessWidget {
   final Color? iconColor;
   final VoidCallback? onTap;
   final bool showChevron;
+  /// Text shown to the right before the chevron (e.g. best lap time).
+  final String? trailingText;
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +103,12 @@ class BentoTileWide extends StatelessWidget {
                 ],
               ),
             ),
+            if (trailingText != null) ...[
+              Text(trailingText!, style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              )),
+              const SizedBox(width: 4),
+            ],
             if (showChevron)
               Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
           ],

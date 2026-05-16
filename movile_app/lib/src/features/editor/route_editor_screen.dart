@@ -281,9 +281,10 @@ class _RouteDetail extends StatelessWidget {
             SizedBox(
               width: _halfWidth(context),
               child: BentoTile(
-                icon: Icons.location_on_outlined,
-                label: 'Localización',
-                value: route.locationLabel ?? '—',
+                icon: Icons.flag_outlined,
+                label: 'Sectores',
+                value: '${route.sectors.length}',
+                onTap: route.sectors.isNotEmpty ? onToggleSectors : null,
               ),
             ),
             SizedBox(
@@ -297,10 +298,9 @@ class _RouteDetail extends StatelessWidget {
             SizedBox(
               width: _halfWidth(context),
               child: BentoTile(
-                icon: Icons.flag_outlined,
-                label: 'Sectores',
-                value: '${route.sectors.length}',
-                onTap: route.sectors.isNotEmpty ? onToggleSectors : null,
+                icon: Icons.location_on_outlined,
+                label: 'Localización',
+                value: route.locationLabel ?? '—',
               ),
             ),
             SizedBox(
@@ -324,7 +324,8 @@ class _RouteDetail extends StatelessWidget {
               child: BentoTileWide(
                 icon: Icons.emoji_events_outlined,
                 label: 'Sesiones',
-                value: _sessionsValue(sessions, bestLap),
+                value: _sessionsValue(sessions),
+                trailingText: _bestLapText(bestLap),
                 showChevron: sessions.isNotEmpty,
                 onTap: sessions.isNotEmpty
                     ? () => _navigateToSessions(context)
@@ -373,13 +374,14 @@ class _RouteDetail extends StatelessWidget {
         RouteDifficulty.hard => 'Difícil',
       };
 
-  String _sessionsValue(List<SessionRun> sessions, LapSummary? bestLap) {
+  String _sessionsValue(List<SessionRun> sessions) {
     if (sessions.isEmpty) return 'Sin sesiones';
-    final count = '${sessions.length} sesión${sessions.length > 1 ? "es" : ""}';
-    if (bestLap != null) {
-      return '$count · Mejor: ${Formatters.duration(bestLap.duration)}';
-    }
-    return count;
+    return '${sessions.length} sesión${sessions.length > 1 ? "es" : ""}';
+  }
+
+  String _bestLapText(LapSummary? bestLap) {
+    if (bestLap == null) return '—';
+    return Formatters.duration(bestLap.duration);
   }
 
   LapSummary? _findBestLap(List<SessionRun> sessions) {
