@@ -103,27 +103,28 @@ class BentoTileWide extends StatelessWidget {
               ),
             ),
             if (trailingText != null) ...[
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 14, color: iconColor ?? theme.colorScheme.primary),
-                      const SizedBox(width: 4),
-                      if (trailingLabel != null)
-                        Text(trailingLabel!, style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        )),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(trailingText!, style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  )),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 14, color: iconColor ?? theme.colorScheme.primary),
+                        const SizedBox(width: 4),
+                        if (trailingLabel != null)
+                          Text(trailingLabel!, style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          )),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(trailingText!, style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    )),
+                  ],
+                ),
               ),
-              const SizedBox(width: 4),
             ],
             Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
           ],
