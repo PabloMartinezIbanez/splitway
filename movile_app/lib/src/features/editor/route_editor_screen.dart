@@ -262,7 +262,7 @@ class _RouteDetail extends StatelessWidget {
               IconButton(
                 onPressed: onToggleSectors,
                 icon: Icon(
-                  showSectors ? Icons.palette : Icons.palette_outlined,
+                  showSectors ? Icons.flag : Icons.flag_outlined,
                 ),
                 tooltip: showSectors ? 'Ocultar sectores' : 'Ver sectores',
               ),
