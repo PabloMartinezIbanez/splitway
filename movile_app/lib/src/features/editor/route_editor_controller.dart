@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:splitway_core/splitway_core.dart';
 
 import '../../data/repositories/local_draft_repository.dart';
+import '../../services/geocoding/reverse_geocoding_service.dart';
 import '../../services/routing/routing_service.dart';
 
 /// Which kind of input the next map tap should produce while drawing a
@@ -18,13 +19,20 @@ enum DrawInputMode {
 }
 
 class RouteEditorController extends ChangeNotifier {
-  RouteEditorController(this._repo, {this.routingService});
+  RouteEditorController(this._repo, {this.routingService, this.geocodingService});
 
   final LocalDraftRepository _repo;
 
   /// Optional: when present each new waypoint triggers a Mapbox Directions
   /// API call to snap the drawn path to actual roads in real time.
   final RoutingService? routingService;
+
+  /// Optional: when present, reverse geocoding is called on save to populate
+  /// the route's locationLabel field.
+  final ReverseGeocodingService? geocodingService;
+
+  List<SessionRun> _sessionsForSelected = const [];
+  List<SessionRun> get sessionsForSelected => _sessionsForSelected;
 
   bool _loading = true;
   bool get loading => _loading;
@@ -106,10 +114,19 @@ class RouteEditorController extends ChangeNotifier {
     }
     _loading = false;
     notifyListeners();
+    if (_selected != null) {
+      _loadSessionsForRoute(_selected!.id);
+    }
   }
 
   void select(RouteTemplate route) {
     _selected = route;
+    notifyListeners();
+    _loadSessionsForRoute(route.id);
+  }
+
+  Future<void> _loadSessionsForRoute(String routeId) async {
+    _sessionsForSelected = await _repo.getSessionsByRoute(routeId);
     notifyListeners();
   }
 
@@ -336,6 +353,12 @@ class RouteEditorController extends ChangeNotifier {
         'Route: ${isClosed ? "closed" : "open"} circuit, '
         'distance first↔last = ${distFirstLast.toStringAsFixed(1)} m');
 
+    // Reverse geocode the first point for the location label.
+    String? locationLabel;
+    if (geocodingService != null && finalPath.isNotEmpty) {
+      locationLabel = await geocodingService!.reverseGeocode(finalPath.first);
+    }
+
     // Auto-generate start/finish gate perpendicular to the route at the
     // first point, using the bearing toward the second point.
     final startFinishGate = _perpendicularGate(finalPath[0], finalPath[1]);
@@ -347,6 +370,7 @@ class RouteEditorController extends ChangeNotifier {
       description: _draftDescription?.trim().isEmpty ?? true
           ? null
           : _draftDescription!.trim(),
+      locationLabel: locationLabel,
       path: List.unmodifiable(finalPath),
       startFinishGate: startFinishGate,
       sectors: [
@@ -398,6 +422,22 @@ class RouteEditorController extends ChangeNotifier {
     if (_selected?.id == id) {
       _selected = null;
     }
+    await load();
+  }
+
+  Future<void> updateRouteMetadata({
+    required String routeId,
+    required String name,
+    String? description,
+    required RouteDifficulty difficulty,
+  }) async {
+    final existing = _routes.firstWhere((r) => r.id == routeId);
+    final updated = existing.copyWith(
+      name: name,
+      description: description,
+      difficulty: difficulty,
+    );
+    await _repo.saveRouteTemplate(updated);
     await load();
   }
 
