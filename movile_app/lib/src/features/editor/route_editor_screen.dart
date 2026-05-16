@@ -325,8 +325,8 @@ class _RouteDetail extends StatelessWidget {
                 icon: Icons.emoji_events_outlined,
                 label: 'Sesiones',
                 value: _sessionsValue(sessions),
-                trailingLabel: 'Mejor',
-                trailingText: _bestLapText(bestLap),
+                trailingLabel: sessions.isNotEmpty ? 'Mejor' : null,
+                trailingText: sessions.isNotEmpty ? _bestLapText(bestLap) : null,
                 onTap: sessions.isNotEmpty
                     ? () => _navigateToSessions(context)
                     : null,
