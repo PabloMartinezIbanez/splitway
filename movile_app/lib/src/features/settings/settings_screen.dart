@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import '../../services/locale/locale_controller.dart';
@@ -12,7 +13,20 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l.settingsTitle)),
+      appBar: AppBar(
+        title: Text(l.settingsTitle),
+        leading: IconButton(
+          icon: const BackButtonIcon(),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/editor');
+            }
+          },
+        ),
+      ),
       body: ListenableBuilder(
         listenable: localeController,
         builder: (context, _) => ListView(

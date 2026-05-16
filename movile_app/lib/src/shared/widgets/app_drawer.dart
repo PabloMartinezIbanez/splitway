@@ -148,7 +148,7 @@ class _LoggedInContent extends StatelessWidget {
                 label: l.drawerSettings,
                 onTap: () {
                   Navigator.pop(context);
-                  context.go('/settings');
+                  context.push('/settings');
                 },
               ),
               _MenuItem(
@@ -381,7 +381,7 @@ class _LoggedOutContent extends StatelessWidget {
                 label: l.drawerSettings,
                 onTap: () {
                   Navigator.pop(context);
-                  context.go('/settings');
+                  context.push('/settings');
                 },
               ),
               _MenuItem(
