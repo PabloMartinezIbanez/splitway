@@ -10,7 +10,9 @@ import '../features/history/history_screen.dart';
 import '../features/home/home_shell.dart';
 import '../features/session/live_session_controller.dart';
 import '../features/session/live_session_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../services/auth/auth_service.dart';
+import '../services/locale/locale_controller.dart';
 import '../services/routing/routing_service.dart';
 import '../services/sync/sync_service.dart';
 
@@ -18,6 +20,7 @@ class AppRouter {
   AppRouter({
     required this.repository,
     required this.config,
+    required this.localeController,
     this.authService,
     this.syncService,
   })  : _editorController = RouteEditorController(
@@ -30,6 +33,7 @@ class AppRouter {
 
   final LocalDraftRepository repository;
   final AppConfig config;
+  final LocaleController localeController;
   final AuthService? authService;
 
   /// Mutable so [SplitwayApp] can attach/detach after login/logout.
@@ -53,6 +57,11 @@ class AppRouter {
             bannerMessage: banner,
           );
         },
+      ),
+
+      GoRoute(
+        path: '/settings',
+        builder: (_, __) => SettingsScreen(localeController: localeController),
       ),
 
       // Main tabbed shell.
@@ -117,7 +126,7 @@ class AppRouter {
 Future<bool> requireAuth(
   BuildContext context,
   AuthService? authService, {
-  String? message,
+  required String message,
 }) async {
   if (authService == null || authService.isLoggedIn) return true;
 
@@ -125,7 +134,7 @@ Future<bool> requireAuth(
     MaterialPageRoute(
       builder: (_) => LoginScreen(
         authService: authService,
-        bannerMessage: message ?? 'Inicia sesión para continuar',
+        bannerMessage: message,
       ),
     ),
   );

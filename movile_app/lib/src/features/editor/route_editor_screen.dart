@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:splitway_core/splitway_core.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import '../../config/app_config.dart';
 import '../../routing/app_router.dart';
@@ -27,6 +29,10 @@ class RouteEditorScreen extends StatefulWidget {
 }
 
 class _RouteEditorScreenState extends State<RouteEditorScreen> {
+  bool _showSectors = false;
+  String? _lastSelectedId;
+  GeoPoint? _userLocation;
+
   @override
   void initState() {
     super.initState();
@@ -42,14 +48,21 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     super.dispose();
   }
 
-  void _onChange() => setState(() {});
+  void _onChange() {
+    final newId = widget.controller.selected?.id;
+    if (newId != _lastSelectedId) {
+      _showSectors = false;
+      _lastSelectedId = newId;
+    }
+    setState(() {});
+  }
 
   Future<void> _onCreateRoute() async {
     // Auth guard: require login before creating a new route.
     final allowed = await requireAuth(
       context,
       widget.authService,
-      message: 'Inicia sesión para crear una ruta',
+      message: AppLocalizations.of(context).loginBannerDefault,
     );
     if (!allowed || !mounted) return;
 
@@ -58,6 +71,10 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
       builder: (_) => const _NewRouteDialog(),
     );
     if (result == null) return;
+
+    // Try to get the user's current location for the initial map center.
+    _userLocation = await _getCurrentLocation();
+
     widget.controller.startDrawing(
       name: result.name,
       description: result.description,
@@ -65,20 +82,49 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     );
   }
 
+  /// Returns the user's current GPS position, or null if unavailable.
+  /// Uses a 5-second timeout to avoid blocking the UI.
+  Future<GeoPoint?> _getCurrentLocation() async {
+    try {
+      final servicesOn = await Geolocator.isLocationServiceEnabled();
+      if (!servicesOn) return null;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+      return GeoPoint(latitude: position.latitude, longitude: position.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _confirmDelete(RouteTemplate route) async {
+    final l = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Eliminar ruta'),
-        content: Text('¿Borrar "${route.name}" y todas sus sesiones?'),
+        title: Text(l.editorDeleteRouteTitle),
+        content: Text(l.editorDeleteRouteConfirm(route.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
+            child: Text(l.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Eliminar'),
+            child: Text(l.commonDelete),
           ),
         ],
       ),
@@ -90,20 +136,22 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final ctrl = widget.controller;
     if (ctrl.drawing) {
       return _DrawingView(
         controller: ctrl,
         config: widget.config,
+        initialCenter: _userLocation,
       );
     }
     return Scaffold(
       appBar: AppBar(
         leading: buildDrawerLeading(context, widget.authService),
-        title: const Text('Editor de rutas'),
+        title: Text(l.editorTitle),
         actions: [
           IconButton(
-            tooltip: 'Nueva ruta',
+            tooltip: l.editorNewRouteTooltip,
             onPressed: _onCreateRoute,
             icon: const Icon(Icons.add_location_alt_outlined),
           ),
@@ -114,13 +162,12 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
           : ctrl.routes.isEmpty
               ? EmptyState(
                   icon: Icons.route_outlined,
-                  title: 'Aún no tienes rutas',
-                  message:
-                      'Crea tu primera ruta para empezar a cronometrar.',
+                  title: l.editorNoRoutesTitle,
+                  message: l.editorNoRoutesMessage,
                   action: FilledButton.icon(
                     onPressed: _onCreateRoute,
                     icon: const Icon(Icons.add),
-                    label: const Text('Nueva ruta'),
+                    label: Text(l.editorNewRouteButton),
                   ),
                 )
               : Column(
@@ -150,6 +197,8 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                           route: ctrl.selected!,
                           config: widget.config,
                           onDelete: () => _confirmDelete(ctrl.selected!),
+                          showSectors: _showSectors,
+                          onToggleSectors: () => setState(() => _showSectors = !_showSectors),
                         ),
                       ),
                   ],
@@ -163,14 +212,19 @@ class _RouteDetail extends StatelessWidget {
     required this.route,
     required this.config,
     required this.onDelete,
+    required this.showSectors,
+    required this.onToggleSectors,
   });
 
   final RouteTemplate route;
   final AppConfig config;
   final VoidCallback onDelete;
+  final bool showSectors;
+  final VoidCallback onToggleSectors;
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -182,9 +236,21 @@ class _RouteDetail extends StatelessWidget {
             child: SplitwayMap(
               useMapbox: config.hasMapbox,
               route: route,
+              showSectors: showSectors,
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        if (route.sectors.isNotEmpty)
+          Center(
+            child: FilledButton.tonalIcon(
+              onPressed: onToggleSectors,
+              icon: Icon(
+                showSectors ? Icons.palette : Icons.palette_outlined,
+              ),
+              label: Text(showSectors ? l.editorHideSectors : l.editorShowSectors),
+            ),
+          ),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -202,14 +268,13 @@ class _RouteDetail extends StatelessWidget {
           Text(route.description!, style: theme.textTheme.bodyMedium),
         ],
         const SizedBox(height: 16),
-        Text('Sectores', style: theme.textTheme.titleMedium),
+        Text(l.editorSectorsLabel, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
+        if (route.sectors.isEmpty)
+          Text(l.editorNoSectorsHint, style: theme.textTheme.bodyMedium),
         ...route.sectors.map((s) => ListTile(
               leading: CircleAvatar(child: Text('${s.order + 1}')),
               title: Text(s.label),
-              subtitle: Text(
-                'Centro: ${_fmt(s.gate.center.latitude)}, ${_fmt(s.gate.center.longitude)}',
-              ),
               dense: true,
             )),
         const SizedBox(height: 16),
@@ -218,57 +283,61 @@ class _RouteDetail extends StatelessWidget {
           leading: CircleAvatar(
             child: Icon(route.isClosed ? Icons.loop : Icons.linear_scale),
           ),
-          title: Text(route.isClosed ? 'Circuito cerrado' : 'Circuito abierto'),
-          subtitle: Text('Creada el ${Formatters.dateTime(route.createdAt)}'),
+          title: Text(route.isClosed ? l.editorClosedLoop : l.editorOpenRoute),
+          subtitle: Text(l.editorCreatedAt(Formatters.dateTime(route.createdAt))),
         ),
         const SizedBox(height: 24),
         OutlinedButton.icon(
           onPressed: onDelete,
           icon: const Icon(Icons.delete_outline),
-          label: const Text('Eliminar ruta'),
+          label: Text(l.editorDeleteRouteButton),
         ),
       ],
     );
   }
 
-  String _fmt(double v) => v.toStringAsFixed(5);
 }
 
 class _DrawingView extends StatelessWidget {
-  const _DrawingView({required this.controller, required this.config});
+  const _DrawingView({
+    required this.controller,
+    required this.config,
+    this.initialCenter,
+  });
 
   final RouteEditorController controller;
   final AppConfig config;
+  final GeoPoint? initialCenter;
 
-  String _modeLabel(DrawInputMode mode) => switch (mode) {
-        DrawInputMode.appendPath => 'Toca para añadir un punto al trazado',
-        DrawInputMode.sectorGate => 'Toca 2 veces para añadir un sector',
+  String _modeLabel(AppLocalizations l, DrawInputMode mode) => switch (mode) {
+        DrawInputMode.appendPath => l.editorModeAppendPath,
+        DrawInputMode.sectorPoint => l.editorModeSectorGate,
       };
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Dibujando: ${controller.draftName}'),
+        title: Text(l.editorDrawingTitle(controller.draftName)),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          tooltip: 'Cancelar',
+          tooltip: l.editorCancelTooltip,
           onPressed: () async {
             final ok = await showDialog<bool>(
               context: context,
               builder: (dialogContext) => AlertDialog(
-                title: const Text('Cancelar dibujo'),
-                content:
-                    const Text('Se descartarán los puntos sin guardar.'),
+                title: Text(l.editorCancelDrawingTitle),
+                content: Text(l.editorCancelDrawingWarning),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),
-                    child: const Text('Volver'),
+                    child: Text(l.commonBack),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(dialogContext, true),
-                    child: const Text('Descartar'),
+                    child: Text(l.commonDiscard),
                   ),
                 ],
               ),
@@ -295,13 +364,13 @@ class _DrawingView extends StatelessWidget {
                       if (saved != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Guardada "${saved.name}"'),
+                            content: Text(l.editorRouteSavedSnack(saved.name)),
                           ),
                         );
                       }
                     }
                   : null,
-              child: const Text('Guardar'),
+              child: Text(l.commonSave),
             ),
         ],
       ),
@@ -310,9 +379,10 @@ class _DrawingView extends StatelessWidget {
           Expanded(
             child: SplitwayMap(
               useMapbox: config.hasMapbox,
+              initialCenter: initialCenter,
               draftPath: controller.draftPath,
               draftWaypoints: controller.rawWaypoints,
-              draftSectorGates: controller.draftSectorGates,
+              draftSectorPoints: controller.draftSectorPoints,
               onTap: controller.handleMapTap,
             ),
           ),
@@ -320,17 +390,14 @@ class _DrawingView extends StatelessWidget {
             _InfoBanner(
               color: theme.colorScheme.tertiaryContainer,
               icon: Icons.map_outlined,
-              message: 'Sin Mapbox token configurado. El mapa interactivo está '
-                  'desactivado; añade un token y reinicia para dibujar sobre el mapa.',
+              message: l.editorNoMapboxToken,
             )
           else if (controller.snapFailed)
             _InfoBanner(
               color: theme.colorScheme.errorContainer,
               icon: Icons.wifi_off_outlined,
               iconColor: theme.colorScheme.onErrorContainer,
-              message: 'No se pudo conectar con el servidor para ajustar la '
-                  'ruta a las carreteras. Se muestran segmentos rectos hasta '
-                  'que la conexión se restablezca.',
+              message: l.editorSnapFailedMessage,
               textColor: theme.colorScheme.onErrorContainer,
             ),
           Container(
@@ -339,7 +406,7 @@ class _DrawingView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(_modeLabel(controller.inputMode),
+                Text(_modeLabel(l, controller.inputMode),
                     style: theme.textTheme.bodyMedium),
                 const SizedBox(height: 8),
                 Wrap(
@@ -347,23 +414,23 @@ class _DrawingView extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     ChoiceChip(
-                      label: const Text('Trazado'),
+                      label: Text(l.editorSegmentPath),
                       selected: controller.inputMode == DrawInputMode.appendPath,
                       onSelected: (_) =>
                           controller.setInputMode(DrawInputMode.appendPath),
                     ),
                     ChoiceChip(
-                      label: const Text('Añadir sector'),
-                      selected: controller.inputMode == DrawInputMode.sectorGate,
+                      label: Text(l.editorSegmentAddSector),
+                      selected: controller.inputMode == DrawInputMode.sectorPoint,
                       onSelected: (_) =>
-                          controller.setInputMode(DrawInputMode.sectorGate),
+                          controller.setInputMode(DrawInputMode.sectorPoint),
                     ),
                     OutlinedButton.icon(
                       onPressed: controller.draftPath.isEmpty
                           ? null
                           : controller.undoLastPathPoint,
                       icon: const Icon(Icons.undo, size: 18),
-                      label: const Text('Deshacer punto'),
+                      label: Text(l.editorUndoPoint),
                     ),
                   ],
                 ),
@@ -385,25 +452,21 @@ class _DraftStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final l = AppLocalizations.of(context);
     return Row(
       children: [
         _StatusChip(
           icon: Icons.timeline,
-          label: '${controller.draftWaypointCount} puntos',
+          label: l.editorPathPoints(controller.draftWaypointCount),
           ok: controller.draftWaypointCount >= 2,
         ),
         const SizedBox(width: 8),
         _StatusChip(
           icon: Icons.flag_outlined,
-          label: '${controller.draftSectorGates.length} sectores',
+          label: l.editorSectorsCount(controller.draftSectorPoints.length),
           ok: true,
           neutral: true,
         ),
-        if (controller.pendingGateLeft != null) ...[
-          const SizedBox(width: 8),
-          Text('Falta el 2º punto…', style: theme.textTheme.labelSmall),
-        ],
       ],
     );
   }
@@ -444,10 +507,11 @@ class _DifficultyChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final (label, color) = switch (difficulty) {
-      RouteDifficulty.easy => ('Fácil', Colors.green),
-      RouteDifficulty.medium => ('Media', Colors.orange),
-      RouteDifficulty.hard => ('Difícil', Colors.red),
+      RouteDifficulty.easy => (l.editorDifficultyEasy, Colors.green),
+      RouteDifficulty.medium => (l.editorDifficultyMedium, Colors.orange),
+      RouteDifficulty.hard => (l.editorDifficultyHard, Colors.red),
     };
     return Chip(
       label: Text(label),
@@ -536,41 +600,42 @@ class _NewRouteDialogState extends State<_NewRouteDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Nueva ruta'),
+      title: Text(l.editorNewRouteDialogTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre',
+              decoration: InputDecoration(
+                labelText: l.editorNameLabel,
               ),
               autofocus: true,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _descCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Descripción (opcional)',
+              decoration: InputDecoration(
+                labelText: l.editorDescriptionLabel,
               ),
             ),
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text('Dificultad',
+              child: Text(l.editorDifficultyLabel,
                   style: Theme.of(context).textTheme.labelLarge),
             ),
             const SizedBox(height: 8),
             SegmentedButton<RouteDifficulty>(
-              segments: const [
+              segments: [
                 ButtonSegment(
-                    value: RouteDifficulty.easy, label: Text('Fácil')),
+                    value: RouteDifficulty.easy, label: Text(l.editorDifficultyEasy)),
                 ButtonSegment(
-                    value: RouteDifficulty.medium, label: Text('Media')),
+                    value: RouteDifficulty.medium, label: Text(l.editorDifficultyMedium)),
                 ButtonSegment(
-                    value: RouteDifficulty.hard, label: Text('Difícil')),
+                    value: RouteDifficulty.hard, label: Text(l.editorDifficultyHard)),
               ],
               selected: {_difficulty},
               onSelectionChanged: (s) => setState(() => _difficulty = s.first),
@@ -581,7 +646,7 @@ class _NewRouteDialogState extends State<_NewRouteDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          child: Text(l.commonCancel),
         ),
         FilledButton(
           onPressed: () {
@@ -597,7 +662,7 @@ class _NewRouteDialogState extends State<_NewRouteDialog> {
               ),
             );
           },
-          child: const Text('Empezar a dibujar'),
+          child: Text(l.editorStartDrawingButton),
         ),
       ],
     );

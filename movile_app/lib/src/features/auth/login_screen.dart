@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
+import '../../services/auth/auth_error_code.dart';
 import '../../services/auth/auth_service.dart';
 
 /// Fullscreen login with blue gradient, Google + Email/Password.
@@ -19,12 +21,31 @@ class LoginScreen extends StatefulWidget {
   /// go_router path to navigate to after successful login (e.g. `/editor`).
   final String? redirect;
 
-  /// Optional message shown as a banner at the top (e.g. "Inicia sesión para
-  /// continuar").
+  /// Optional message shown as a banner at the top (e.g. "Sign in to
+  /// continue").
   final String? bannerMessage;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
+}
+
+String _localizedAuthError(AppLocalizations l, AuthErrorCode code) {
+  switch (code) {
+    case AuthErrorCode.googleTokenUnavailable:
+      return l.authErrorGoogleToken;
+    case AuthErrorCode.emailAlreadyRegistered:
+      return l.authErrorEmailAlreadyRegistered;
+    case AuthErrorCode.invalidCredentials:
+      return l.authErrorInvalidCredentials;
+    case AuthErrorCode.emailNotConfirmed:
+      return l.authErrorEmailNotConfirmed;
+    case AuthErrorCode.passwordTooShort:
+      return l.authErrorPasswordTooShort;
+    case AuthErrorCode.noConnection:
+      return l.authErrorNoConnection;
+    case AuthErrorCode.unexpected:
+      return l.authErrorUnexpected;
+  }
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -93,6 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _showConfirmationEmailDialog(String email) {
+    final l = AppLocalizations.of(context);
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -116,9 +138,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              '¡Revisa tu correo!',
-              style: TextStyle(
+            Text(
+              l.loginConfirmationTitle,
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
@@ -126,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Te hemos enviado un enlace de confirmación a\n$email\n\nHaz clic en el enlace para activar tu cuenta y poder iniciar sesión.',
+              l.loginConfirmationBody(email),
               style: const TextStyle(
                 fontSize: 13,
                 color: Color(0xFF616161),
@@ -140,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Entendido'),
+            child: Text(l.commonClose),
           ),
         ],
       ),
@@ -156,6 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = widget.authService;
+    final l = AppLocalizations.of(context);
 
     return Scaffold(
       body: Container(
@@ -206,9 +229,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Text('🏁',
                       style: TextStyle(fontSize: 48)),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Splitway',
-                    style: TextStyle(
+                  Text(
+                    l.appTitle,
+                    style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
@@ -216,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Cronómetro inteligente para rutas',
+                    l.appTagline,
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.white.withValues(alpha: 0.8),
@@ -253,7 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 padding:
                                     const EdgeInsets.symmetric(horizontal: 12),
                                 child: Text(
-                                  '— o —',
+                                  l.loginOrSeparator,
                                   style: TextStyle(
                                     color:
                                         Colors.white.withValues(alpha: 0.7),
@@ -274,13 +297,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _emailCtrl,
                             keyboardType: TextInputType.emailAddress,
                             style: const TextStyle(color: Colors.white),
-                            decoration: _inputDecoration('Email'),
+                            decoration: _inputDecoration(l.loginEmailHint),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
-                                return 'Introduce un email';
+                                return l.loginEmailRequired;
                               }
                               if (!v.contains('@') || !v.contains('.')) {
-                                return 'Email no válido';
+                                return l.loginEmailInvalid;
                               }
                               return null;
                             },
@@ -292,7 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _passwordCtrl,
                             obscureText: _obscurePassword,
                             style: const TextStyle(color: Colors.white),
-                            decoration: _inputDecoration('Contraseña').copyWith(
+                            decoration: _inputDecoration(l.loginPasswordHint).copyWith(
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
@@ -307,10 +330,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             validator: (v) {
                               if (v == null || v.isEmpty) {
-                                return 'Introduce una contraseña';
+                                return l.loginPasswordRequired;
                               }
                               if (v.length < 6) {
-                                return 'Mínimo 6 caracteres';
+                                return l.loginPasswordMinLength;
                               }
                               return null;
                             },
@@ -318,7 +341,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 14),
 
                           // Error message
-                          if (auth.error != null) ...[
+                          if (auth.errorCode != null) ...[
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
@@ -329,7 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         .withValues(alpha: 0.5)),
                               ),
                               child: Text(
-                                auth.error!,
+                                _localizedAuthError(l, auth.errorCode!),
                                 style: const TextStyle(
                                     color: Colors.white, fontSize: 12),
                                 textAlign: TextAlign.center,
@@ -360,8 +383,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     )
                                   : Text(
                                       _isSignUp
-                                          ? 'Crear cuenta'
-                                          : 'Iniciar sesión',
+                                          ? l.loginSignUpButton
+                                          : l.loginSignInButton,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 14,
@@ -386,16 +409,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text.rich(
                       TextSpan(
                         text: _isSignUp
-                            ? '¿Ya tienes cuenta? '
-                            : '¿No tienes cuenta? ',
+                            ? l.loginToggleToSignIn
+                            : l.loginToggleToSignUp,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 13,
                         ),
                         children: [
                           TextSpan(
-                            text:
-                                _isSignUp ? 'Inicia sesión' : 'Regístrate',
+                            text: _isSignUp
+                                ? l.loginToggleSignInAction
+                                : l.loginToggleSignUpAction,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -412,7 +436,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton(
                     onPressed: _handleSkip,
                     child: Text(
-                      'Continuar sin cuenta',
+                      l.loginSkipButton,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.5),
                         fontSize: 12,
@@ -451,6 +475,7 @@ class _GoogleSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return SizedBox(
       height: 48,
       child: OutlinedButton.icon(
@@ -468,9 +493,9 @@ class _GoogleSignInButton extends StatelessWidget {
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF4285F4))),
-        label: const Text(
-          'Continuar con Google',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        label: Text(
+          l.loginContinueWithGoogle,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
       ),
     );

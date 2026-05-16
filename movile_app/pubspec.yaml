@@ -11,6 +11,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  shared_preferences: ^2.3.0
   splitway_core:
     path: ../packages/splitway_core
   geolocator: ^14.0.0
@@ -35,6 +38,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   # env/local.json is gitignored. Copy env/local.example.json to env/local.json
   # and uncomment the entry below to bundle real Mapbox/Supabase credentials.
   assets:

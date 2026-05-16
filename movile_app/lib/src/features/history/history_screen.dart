@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import '../../config/app_config.dart';
 import '../../data/repositories/local_draft_repository.dart';
@@ -60,13 +61,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         leading: buildDrawerLeading(context, widget.authService),
-        title: const Text('Historial'),
+        title: Text(l.historyTitle),
         actions: [
           IconButton(
-            tooltip: 'Recargar',
+            tooltip: l.commonRefresh,
             onPressed: _load,
             icon: const Icon(Icons.refresh),
           ),
@@ -75,11 +77,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _sessions.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.history_toggle_off,
-                  title: 'Aún no has grabado ninguna sesión',
-                  message:
-                      'Ve a la pestaña Sesión, elige una ruta y pulsa "Comenzar".',
+                  title: l.historyNoSessionsTitle,
+                  message: l.historyNoSessionsMessage,
                 )
               : ListView.separated(
                   padding: const EdgeInsets.all(8),
@@ -115,13 +116,20 @@ class _SessionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final best = session.bestLap;
+    final bestLapSuffix = best != null
+        ? l.historyBestLapSuffix(Formatters.duration(best.duration))
+        : '';
     return Card(
       child: ListTile(
-        title: Text(route?.name ?? 'Ruta eliminada'),
+        title: Text(route?.name ?? l.historyDeletedRoute),
         subtitle: Text(
-          '${Formatters.dateTime(session.startedAt)} · ${session.laps.length} vuelta(s)'
-          '${best != null ? ' · mejor ${Formatters.duration(best.duration)}' : ''}',
+          l.historySessionSubtitle(
+            Formatters.dateTime(session.startedAt),
+            session.laps.length,
+            bestLapSuffix,
+          ),
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: route == null
@@ -180,28 +188,29 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_route?.name ?? 'Sesión'),
+        title: Text(_route?.name ?? l.historySessionTitle),
         actions: [
           if (_session != null)
             IconButton(
-              tooltip: 'Eliminar sesión',
+              tooltip: l.historyDeleteSessionTitle,
               icon: const Icon(Icons.delete_outline),
               onPressed: () async {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (_) => AlertDialog(
-                    title: const Text('Eliminar sesión'),
-                    content: const Text('Esta acción no se puede deshacer.'),
+                    title: Text(l.historyDeleteSessionTitle),
+                    content: Text(l.historyIrreversibleWarning),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancelar'),
+                        child: Text(l.commonCancel),
                       ),
                       FilledButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Eliminar'),
+                        child: Text(l.commonDelete),
                       ),
                     ],
                   ),
@@ -217,9 +226,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _session == null || _route == null
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.error_outline,
-                  title: 'Sesión no encontrada',
+                  title: l.historySessionNotFound,
                 )
               : ListView(
                   padding: const EdgeInsets.all(16),
@@ -243,21 +252,26 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     const SizedBox(height: 12),
                     _SummaryRow(session: _session!),
                     const SizedBox(height: 16),
-                    Text('Vueltas',
+                    Text(l.historyLapsLabel,
                         style: Theme.of(context).textTheme.titleMedium),
                     for (final lap in _session!.laps)
                       ListTile(
                         leading: CircleAvatar(child: Text('${lap.lapNumber}')),
                         title: Text(Formatters.duration(lap.duration)),
-                        subtitle: Text(
-                          '${Formatters.distanceMeters(lap.distanceMeters)} · ${Formatters.speedMps(lap.avgSpeedMps)}',
-                        ),
+                        subtitle: Text(() {
+                            final (dv, isKm) = Formatters.distanceMeters(lap.distanceMeters);
+                            final dist = isKm
+                                ? l.unitKilometers(dv.toStringAsFixed(2))
+                                : l.unitMeters(dv.toStringAsFixed(0));
+                            final speed = l.unitKmh(Formatters.speedMps(lap.avgSpeedMps).toStringAsFixed(1));
+                            return '$dist · $speed';
+                          }()),
                         trailing: lap.completed
                             ? const Icon(Icons.check_circle, color: Colors.green)
                             : const Icon(Icons.timer_off, color: Colors.orange),
                       ),
                     const SizedBox(height: 16),
-                    Text('Sectores',
+                    Text(l.historySectorsLabel,
                         style: Theme.of(context).textTheme.titleMedium),
                     for (final sec in _session!.sectorSummaries)
                       ListTile(
@@ -274,7 +288,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                             )
                             .label),
                         subtitle: Text(
-                          'Vuelta ${sec.lapNumber} · ${Formatters.speedMps(sec.avgSpeedMps)}',
+                          l.historySectorSubtitle(
+                            sec.lapNumber,
+                            l.unitKmh(Formatters.speedMps(sec.avgSpeedMps).toStringAsFixed(1)),
+                          ),
                         ),
                         trailing: Text(Formatters.duration(sec.duration)),
                       ),
@@ -291,10 +308,15 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final (dv, isKm) = Formatters.distanceMeters(session.totalDistanceMeters);
+    final distStr = isKm
+        ? l.unitKilometers(dv.toStringAsFixed(2))
+        : l.unitMeters(dv.toStringAsFixed(0));
     final entries = [
-      ('Distancia', Formatters.distanceMeters(session.totalDistanceMeters)),
-      ('Vel. máx', Formatters.speedMps(session.maxSpeedMps)),
-      ('Vel. media', Formatters.speedMps(session.avgSpeedMps)),
+      (l.historyDistanceLabel, distStr),
+      (l.historyMaxSpeedLabel, l.unitKmh(Formatters.speedMps(session.maxSpeedMps).toStringAsFixed(1))),
+      (l.historyAvgSpeedLabel, l.unitKmh(Formatters.speedMps(session.avgSpeedMps).toStringAsFixed(1))),
     ];
     return Row(
       children: [

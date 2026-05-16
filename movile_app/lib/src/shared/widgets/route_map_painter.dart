@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:splitway_core/splitway_core.dart';
+import 'sector_segments.dart';
 
 /// Iter 1 placeholder for Mapbox. Renders a route, gates and (optionally)
 /// a session telemetry trace by projecting lat/lng to the canvas with
@@ -9,11 +10,13 @@ class RouteMapPainter extends CustomPainter {
     required this.route,
     this.telemetry = const [],
     this.highlightSectorId,
+    this.showSectors = false,
   });
 
   final RouteTemplate route;
   final List<TelemetryPoint> telemetry;
   final String? highlightSectorId;
+  final bool showSectors;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -71,20 +74,39 @@ class RouteMapPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Path.
+    // Path — plain or sector-colored.
     if (route.path.length >= 2) {
-      final pathPaint = Paint()
-        ..color = const Color(0xFF1565C0)
-        ..strokeWidth = 3
-        ..style = PaintingStyle.stroke
-        ..strokeJoin = StrokeJoin.round;
-      final p = Path()..moveTo(project(route.path.first).dx,
-          project(route.path.first).dy);
-      for (final pt in route.path.skip(1)) {
-        final o = project(pt);
-        p.lineTo(o.dx, o.dy);
+      if (showSectors && route.sectors.isNotEmpty) {
+        final segments = computeSectorSegments(route.path, route.sectors);
+        for (var i = 0; i < segments.length; i++) {
+          final seg = segments[i];
+          if (seg.length < 2) continue;
+          final paint = Paint()
+            ..color = kSectorColors[i % kSectorColors.length]
+            ..strokeWidth = 3
+            ..style = PaintingStyle.stroke
+            ..strokeJoin = StrokeJoin.round;
+          final p = Path()..moveTo(project(seg.first).dx, project(seg.first).dy);
+          for (final pt in seg.skip(1)) {
+            final o = project(pt);
+            p.lineTo(o.dx, o.dy);
+          }
+          canvas.drawPath(p, paint);
+        }
+      } else {
+        final pathPaint = Paint()
+          ..color = const Color(0xFF1565C0)
+          ..strokeWidth = 3
+          ..style = PaintingStyle.stroke
+          ..strokeJoin = StrokeJoin.round;
+        final p = Path()
+          ..moveTo(project(route.path.first).dx, project(route.path.first).dy);
+        for (final pt in route.path.skip(1)) {
+          final o = project(pt);
+          p.lineTo(o.dx, o.dy);
+        }
+        canvas.drawPath(p, pathPaint);
       }
-      canvas.drawPath(p, pathPaint);
     }
 
     // Telemetry trace (if any).
@@ -103,40 +125,27 @@ class RouteMapPainter extends CustomPainter {
       canvas.drawPath(p, telPaint);
     }
 
-    // Start/finish gate.
-    _drawGate(canvas, project, route.startFinishGate,
-        const Color(0xFF2E7D32), 4);
-
-    // Sector gates.
-    for (final s in route.sectors) {
-      final isHighlight = s.id == highlightSectorId;
-      _drawGate(canvas, project, s.gate,
-          isHighlight ? const Color(0xFFFFB300) : const Color(0xFFC62828),
-          isHighlight ? 4 : 3);
+    // Sector boundary points (only when showSectors is active).
+    if (showSectors && route.sectors.isNotEmpty) {
+      for (var i = 0; i < route.sectors.length; i++) {
+        final center = route.sectors[i].gate.center;
+        final dot = Paint()
+          ..color = kSectorColors[(i + 1) % kSectorColors.length];
+        canvas.drawCircle(project(center), 6, dot);
+        final border = Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2;
+        canvas.drawCircle(project(center), 6, border);
+      }
     }
-  }
-
-  void _drawGate(
-    Canvas canvas,
-    Offset Function(GeoPoint) project,
-    GateDefinition gate,
-    Color color,
-    double width,
-  ) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = width
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(project(gate.left), project(gate.right), paint);
-    final dot = Paint()..color = color;
-    canvas.drawCircle(project(gate.left), 3, dot);
-    canvas.drawCircle(project(gate.right), 3, dot);
   }
 
   @override
   bool shouldRepaint(covariant RouteMapPainter oldDelegate) {
     return oldDelegate.route != route ||
         oldDelegate.telemetry.length != telemetry.length ||
-        oldDelegate.highlightSectorId != highlightSectorId;
+        oldDelegate.highlightSectorId != highlightSectorId ||
+        oldDelegate.showSectors != showSectors;
   }
 }

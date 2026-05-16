@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart' hide Image;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mbx;
 import 'package:splitway_core/splitway_core.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import 'route_map_painter.dart';
+import 'sector_segments.dart';
 
 /// Wraps a real Mapbox `MapWidget` when [useMapbox] is true; otherwise falls
 /// back to the iter 1 `RouteMapPainter`. The fallback keeps widget tests
@@ -18,8 +20,10 @@ class SplitwayMap extends StatefulWidget {
     this.telemetry = const [],
     this.draftPath = const [],
     this.draftWaypoints = const [],
-    this.draftSectorGates = const [],
+    this.draftSectorPoints = const [],
     this.highlightSectorId,
+    this.showSectors = false,
+    this.initialCenter,
     this.onTap,
     this.onLongPress,
     this.styleUri,
@@ -32,8 +36,13 @@ class SplitwayMap extends StatefulWidget {
   final List<GeoPoint> draftPath;
   /// User-tapped waypoints shown as circles during drawing (typically < 25).
   final List<GeoPoint> draftWaypoints;
-  final List<GateDefinition> draftSectorGates;
+  /// Snapped path vertices marking sector boundaries (shown as circles while drawing).
+  final List<GeoPoint> draftSectorPoints;
   final String? highlightSectorId;
+  /// When true, the saved route is drawn in per-sector colors instead of solid blue.
+  final bool showSectors;
+  /// Initial camera center (e.g. user GPS location). Falls back to Madrid if null.
+  final GeoPoint? initialCenter;
   final ValueChanged<GeoPoint>? onTap;
   final ValueChanged<GeoPoint>? onLongPress;
   final String? styleUri;
@@ -79,8 +88,9 @@ class _SplitwayMapState extends State<SplitwayMap> {
         oldWidget.telemetry.length != widget.telemetry.length ||
         oldWidget.draftPath.length != widget.draftPath.length ||
         oldWidget.draftWaypoints.length != widget.draftWaypoints.length ||
-        oldWidget.draftSectorGates.length != widget.draftSectorGates.length ||
-        oldWidget.highlightSectorId != widget.highlightSectorId;
+        oldWidget.draftSectorPoints.length != widget.draftSectorPoints.length ||
+        oldWidget.highlightSectorId != widget.highlightSectorId ||
+        oldWidget.showSectors != widget.showSectors;
 
     if (annotationsChanged) _renderAnnotations();
 
@@ -93,7 +103,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
     if (route == null) {
       return ColoredBox(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: const Center(child: Text('Sin ruta')),
+        child: Center(child: Text(AppLocalizations.of(context).mapNoRoute)),
       );
     }
     return CustomPaint(
@@ -101,6 +111,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
         route: route,
         telemetry: widget.telemetry,
         highlightSectorId: widget.highlightSectorId,
+        showSectors: widget.showSectors,
       ),
       child: const SizedBox.expand(),
     );
@@ -111,6 +122,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
       return widget.route!.path.first;
     }
     if (widget.draftPath.isNotEmpty) return widget.draftPath.first;
+    if (widget.initialCenter != null) return widget.initialCenter!;
     return const GeoPoint(latitude: 40.4168, longitude: -3.7038);
   }
 
@@ -122,7 +134,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
       center: mbx.Point(
         coordinates: mbx.Position(center.longitude, center.latitude),
       ),
-      zoom: 15,
+      zoom: 11,
     ));
     // Register tap / long-tap interactions via the non-deprecated API.
     if (widget.onTap != null) {
@@ -210,11 +222,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
       }
     }
     all.addAll(widget.draftPath);
-    for (final g in widget.draftSectorGates) {
-      all
-        ..add(g.left)
-        ..add(g.right);
-    }
+    all.addAll(widget.draftSectorPoints);
     for (final t in widget.telemetry) {
       all.add(t.location);
     }
@@ -231,22 +239,37 @@ class _SplitwayMapState extends State<SplitwayMap> {
 
     final r = widget.route;
     if (r != null && r.path.isNotEmpty) {
-      await lineMgr.create(mbx.PolylineAnnotationOptions(
-        geometry: _toLineString(r.path),
-        lineColor: 0xFF1565C0,
-        lineWidth: 4,
-      ));
-      await _drawGate(lineMgr, circleMgr, r.startFinishGate,
-          color: 0xFF2E7D32, width: 5);
-      for (final s in r.sectors) {
-        final highlight = s.id == widget.highlightSectorId;
-        await _drawGate(
-          lineMgr,
-          circleMgr,
-          s.gate,
-          color: highlight ? 0xFFFFB300 : 0xFFC62828,
-          width: highlight ? 5 : 4,
-        );
+      if (widget.showSectors && r.sectors.isNotEmpty) {
+        // Draw each sector segment in a different color.
+        final segments = computeSectorSegments(r.path, r.sectors);
+        for (var i = 0; i < segments.length; i++) {
+          if (segments[i].length < 2) continue;
+          await lineMgr.create(mbx.PolylineAnnotationOptions(
+            geometry: _toLineString(segments[i]),
+            lineColor: kSectorColors[i % kSectorColors.length].value,
+            lineWidth: 4,
+          ));
+        }
+      } else {
+        await lineMgr.create(mbx.PolylineAnnotationOptions(
+          geometry: _toLineString(r.path),
+          lineColor: 0xFF1565C0,
+          lineWidth: 4,
+        ));
+      }
+      if (widget.showSectors && r.sectors.isNotEmpty) {
+        // Show sector boundary points as colored circles on the route.
+        for (var i = 0; i < r.sectors.length; i++) {
+          final center = r.sectors[i].gate.center;
+          await circleMgr.create(mbx.CircleAnnotationOptions(
+            geometry: mbx.Point(
+                coordinates: mbx.Position(center.longitude, center.latitude)),
+            circleColor: kSectorColors[(i + 1) % kSectorColors.length].value,
+            circleRadius: 8,
+            circleStrokeColor: 0xFFFFFFFF,
+            circleStrokeWidth: 2,
+          ));
+        }
       }
     }
 
@@ -279,29 +302,14 @@ class _SplitwayMapState extends State<SplitwayMap> {
         circleRadius: 6,
       ));
     }
-    for (final g in widget.draftSectorGates) {
-      await _drawGate(lineMgr, circleMgr, g, color: 0xFFC62828, width: 3);
-    }
-  }
-
-  Future<void> _drawGate(
-    mbx.PolylineAnnotationManager lines,
-    mbx.CircleAnnotationManager circles,
-    GateDefinition gate, {
-    required int color,
-    required double width,
-  }) async {
-    await lines.create(mbx.PolylineAnnotationOptions(
-      geometry: _toLineString([gate.left, gate.right]),
-      lineColor: color,
-      lineWidth: width,
-    ));
-    for (final p in [gate.left, gate.right]) {
-      await circles.create(mbx.CircleAnnotationOptions(
-        geometry: mbx.Point(
-            coordinates: mbx.Position(p.longitude, p.latitude)),
-        circleColor: color,
-        circleRadius: 5,
+    for (var i = 0; i < widget.draftSectorPoints.length; i++) {
+      final p = widget.draftSectorPoints[i];
+      await circleMgr.create(mbx.CircleAnnotationOptions(
+        geometry: mbx.Point(coordinates: mbx.Position(p.longitude, p.latitude)),
+        circleColor: kSectorColors[i % kSectorColors.length].value,
+        circleRadius: 8,
+        circleStrokeColor: 0xFFFFFFFF,
+        circleStrokeWidth: 2,
       ));
     }
   }

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'auth_error_code.dart';
+
 /// Wraps [SupabaseAuth] and exposes a simple API for sign-in / sign-out.
 ///
 /// Listens to [onAuthStateChange] so the UI reacts to login, logout and
@@ -22,8 +24,8 @@ class AuthService extends ChangeNotifier {
   bool _loading = false;
   bool get loading => _loading;
 
-  String? _error;
-  String? get error => _error;
+  AuthErrorCode? _errorCode;
+  AuthErrorCode? get errorCode => _errorCode;
 
   /// True when the last sign-up succeeded but requires email confirmation.
   /// The UI should show a "check your inbox" dialog and stay on the screen.
@@ -34,9 +36,15 @@ class AuthService extends ChangeNotifier {
     _pendingEmailConfirmation = false;
   }
 
+  void clearError() {
+    if (_errorCode == null) return;
+    _errorCode = null;
+    notifyListeners();
+  }
+
   void _onAuthEvent(AuthState state) {
     debugPrint('AuthService: ${state.event}');
-    _error = null;
+    _errorCode = null;
     notifyListeners();
   }
 
@@ -46,7 +54,7 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> signInWithGoogle() async {
     _loading = true;
-    _error = null;
+    _errorCode = null;
     notifyListeners();
 
     try {
@@ -66,7 +74,7 @@ class AuthService extends ChangeNotifier {
       final accessToken = googleAuth.accessToken;
 
       if (idToken == null) {
-        _error = 'No se pudo obtener el token de Google.';
+        _errorCode = AuthErrorCode.googleTokenUnavailable;
         _loading = false;
         notifyListeners();
         return false;
@@ -83,7 +91,7 @@ class AuthService extends ChangeNotifier {
       return true;
     } catch (e) {
       debugPrint('signInWithGoogle error: $e');
-      _error = _friendlyError(e);
+      _errorCode = _mapGenericError(e);
       _loading = false;
       notifyListeners();
       return false;
@@ -96,7 +104,7 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> signInWithEmail(String email, String password) async {
     _loading = true;
-    _error = null;
+    _errorCode = null;
     notifyListeners();
 
     try {
@@ -108,12 +116,12 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return true;
     } on AuthException catch (e) {
-      _error = _friendlyAuthError(e);
+      _errorCode = _mapAuthError(e);
       _loading = false;
       notifyListeners();
       return false;
     } catch (e) {
-      _error = _friendlyError(e);
+      _errorCode = _mapGenericError(e);
       _loading = false;
       notifyListeners();
       return false;
@@ -122,7 +130,7 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> signUpWithEmail(String email, String password) async {
     _loading = true;
-    _error = null;
+    _errorCode = null;
     notifyListeners();
 
     try {
@@ -137,7 +145,7 @@ class AuthService extends ChangeNotifier {
       if (response.session == null) {
         final isDuplicate = response.user?.identities?.isEmpty ?? false;
         if (isDuplicate) {
-          _error = 'Este email ya está registrado. Inicia sesión.';
+          _errorCode = AuthErrorCode.emailAlreadyRegistered;
           _loading = false;
           notifyListeners();
           return false;
@@ -151,12 +159,12 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return true;
     } on AuthException catch (e) {
-      _error = _friendlyAuthError(e);
+      _errorCode = _mapAuthError(e);
       _loading = false;
       notifyListeners();
       return false;
     } catch (e) {
-      _error = _friendlyError(e);
+      _errorCode = _mapGenericError(e);
       _loading = false;
       notifyListeners();
       return false;
@@ -176,14 +184,6 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clears the current error message (e.g. when toggling sign-in / sign-up).
-  void clearError() {
-    if (_error != null) {
-      _error = null;
-      notifyListeners();
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
@@ -196,30 +196,32 @@ class AuthService extends ChangeNotifier {
     defaultValue: '',
   );
 
-  String _friendlyAuthError(AuthException e) {
+  AuthErrorCode _mapAuthError(AuthException e) {
     final msg = e.message.toLowerCase();
     if (msg.contains('invalid login credentials') ||
         msg.contains('invalid_credentials')) {
-      return 'Email o contraseña incorrectos.';
+      return AuthErrorCode.invalidCredentials;
     }
     if (msg.contains('email not confirmed')) {
-      return 'Confirma tu email antes de iniciar sesión.';
+      return AuthErrorCode.emailNotConfirmed;
     }
     if (msg.contains('user already registered')) {
-      return 'Este email ya está registrado.';
+      return AuthErrorCode.emailAlreadyRegistered;
     }
     if (msg.contains('password') && msg.contains('at least')) {
-      return 'La contraseña debe tener al menos 6 caracteres.';
+      return AuthErrorCode.passwordTooShort;
     }
-    return e.message;
+    return AuthErrorCode.unexpected;
   }
 
-  String _friendlyError(Object e) {
+  AuthErrorCode _mapGenericError(Object e) {
     final msg = e.toString().toLowerCase();
-    if (msg.contains('socket') || msg.contains('network') || msg.contains('connection')) {
-      return 'Sin conexión. Inténtalo de nuevo.';
+    if (msg.contains('socket') ||
+        msg.contains('network') ||
+        msg.contains('connection')) {
+      return AuthErrorCode.noConnection;
     }
-    return 'Error inesperado. Inténtalo de nuevo.';
+    return AuthErrorCode.unexpected;
   }
 
   @override

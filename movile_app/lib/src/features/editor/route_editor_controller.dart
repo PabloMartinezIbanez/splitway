@@ -12,8 +12,9 @@ enum DrawInputMode {
   /// Each tap appends a point to the route path.
   appendPath,
 
-  /// The next two taps define a sector gate.
-  sectorGate,
+  /// A single tap snaps to the nearest path vertex and auto-generates a
+  /// perpendicular sector gate at that point.
+  sectorPoint,
 }
 
 class RouteEditorController extends ChangeNotifier {
@@ -71,9 +72,12 @@ class RouteEditorController extends ChangeNotifier {
   List<GateDefinition> get draftSectorGates =>
       List.unmodifiable(_draftSectorGates);
 
-  /// Buffers the first tap while defining a 2-point sector gate.
-  GeoPoint? _pendingGateLeft;
-  GeoPoint? get pendingGateLeft => _pendingGateLeft;
+  /// Path vertices snapped by the sectorPoint mode (parallel to _draftSectorGates).
+  final List<GeoPoint> _draftSectorPoints = [];
+  List<GeoPoint> get draftSectorPoints => List.unmodifiable(_draftSectorPoints);
+
+  /// Always null — retained for widget compatibility after removing 2-tap gate.
+  GeoPoint? get pendingGateLeft => null;
 
   DrawInputMode _inputMode = DrawInputMode.appendPath;
   DrawInputMode get inputMode => _inputMode;
@@ -125,7 +129,7 @@ class RouteEditorController extends ChangeNotifier {
     _rawWaypoints.clear();
     _draftPath.clear();
     _draftSectorGates.clear();
-    _pendingGateLeft = null;
+    _draftSectorPoints.clear();
     _inputMode = DrawInputMode.appendPath;
     notifyListeners();
   }
@@ -140,14 +144,13 @@ class RouteEditorController extends ChangeNotifier {
     _rawWaypoints.clear();
     _draftPath.clear();
     _draftSectorGates.clear();
-    _pendingGateLeft = null;
+    _draftSectorPoints.clear();
     _inputMode = DrawInputMode.appendPath;
     notifyListeners();
   }
 
   void setInputMode(DrawInputMode mode) {
     _inputMode = mode;
-    _pendingGateLeft = null;
     notifyListeners();
   }
 
@@ -181,16 +184,45 @@ class RouteEditorController extends ChangeNotifier {
         notifyListeners();
         // Then schedule a snap to replace the straight segment with a road.
         _scheduleSnap();
-      case DrawInputMode.sectorGate:
-        if (_pendingGateLeft == null) {
-          _pendingGateLeft = p;
-        } else {
-          _draftSectorGates.add(
-              GateDefinition(left: _pendingGateLeft!, right: p));
-          _pendingGateLeft = null;
-        }
+      case DrawInputMode.sectorPoint:
+        if (_draftPath.length < 2) return;  // Need at least 2 points to compute a bearing
+        final idx = _nearestPathIndex(p);
+        final snapped = _draftPath[idx];
+        final gate = _gateAtPathIndex(idx);
+        _draftSectorPoints.add(snapped);
+        _draftSectorGates.add(gate);
         notifyListeners();
     }
+  }
+
+  // ---------- Sector-point helpers ----------
+
+  /// Returns the index of the [_draftPath] vertex closest to [tap].
+  int _nearestPathIndex(GeoPoint tap) {
+    int bestIdx = 0;
+    double bestDist = _draftPath[0].distanceTo(tap);
+    for (var i = 1; i < _draftPath.length; i++) {
+      final d = _draftPath[i].distanceTo(tap);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  /// Builds a perpendicular [GateDefinition] at [_draftPath[idx]].
+  GateDefinition _gateAtPathIndex(int idx) {
+    final anchor = _draftPath[idx];
+    if (idx < _draftPath.length - 1) {
+      return _perpendicularGate(anchor, _draftPath[idx + 1]);
+    }
+    // At the last vertex: extrapolate the bearing forward to keep the gate
+    // centered on anchor (not on the previous vertex).
+    final prev = _draftPath[idx - 1];
+    final bearing = prev.bearingTo(anchor);
+    final reference = anchor.destinationPoint(bearing, 1.0);
+    return _perpendicularGate(anchor, reference);
   }
 
   // ---------- Live snap helpers ----------
@@ -339,7 +371,7 @@ class RouteEditorController extends ChangeNotifier {
     _rawWaypoints.clear();
     _draftPath.clear();
     _draftSectorGates.clear();
-    _pendingGateLeft = null;
+    _draftSectorPoints.clear();
     _inputMode = DrawInputMode.appendPath;
 
     await load();

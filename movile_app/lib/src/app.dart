@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_config.dart';
@@ -7,6 +9,7 @@ import 'data/repositories/local_draft_repository.dart';
 import 'data/repositories/supabase_repository.dart';
 import 'routing/app_router.dart';
 import 'services/auth/auth_service.dart';
+import 'services/locale/locale_controller.dart';
 import 'services/sync/sync_service.dart';
 
 class SplitwayApp extends StatefulWidget {
@@ -14,10 +17,12 @@ class SplitwayApp extends StatefulWidget {
     super.key,
     required this.config,
     required this.database,
+    required this.localeController,
   });
 
   final AppConfig config;
   final SplitwayLocalDatabase database;
+  final LocaleController localeController;
 
   @override
   State<SplitwayApp> createState() => _SplitwayAppState();
@@ -36,12 +41,8 @@ class _SplitwayAppState extends State<SplitwayApp> {
 
     if (widget.config.hasSupabase) {
       final client = Supabase.instance.client;
-
-      // AuthService is always created when Supabase is configured.
       _authService = AuthService(client: client);
       _authService!.addListener(_onAuthStateChanged);
-
-      // If already logged in at startup, wire up sync immediately.
       if (client.auth.currentUser != null) {
         _createSyncService(client);
       }
@@ -52,10 +53,10 @@ class _SplitwayAppState extends State<SplitwayApp> {
       config: widget.config,
       authService: _authService,
       syncService: _syncService,
+      localeController: widget.localeController,
     );
   }
 
-  /// React to login / logout and create or dispose the SyncService.
   void _onAuthStateChanged() {
     final isLoggedIn = _authService?.isLoggedIn ?? false;
 
@@ -91,24 +92,35 @@ class _SplitwayAppState extends State<SplitwayApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Splitway',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-          brightness: Brightness.light,
+    return ListenableBuilder(
+      listenable: widget.localeController,
+      builder: (context, _) => MaterialApp.router(
+        onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+        debugShowCheckedModeBanner: false,
+        locale: widget.localeController.locale,
+        supportedLocales: LocaleController.supported,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF1565C0),
+            brightness: Brightness.light,
+          ),
         ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-          brightness: Brightness.dark,
+        darkTheme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF1565C0),
+            brightness: Brightness.dark,
+          ),
         ),
+        routerConfig: _router.router,
       ),
-      routerConfig: _router.router,
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:splitway_mobile/l10n/app_localizations.dart';
 
 import '../../services/auth/auth_service.dart';
 import '../../services/sync/sync_service.dart';
@@ -53,21 +54,21 @@ class HomeShell extends StatelessWidget {
           i,
           initialLocation: i == shell.currentIndex,
         ),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.edit_location_alt_outlined),
-            selectedIcon: Icon(Icons.edit_location_alt),
-            label: 'Editor',
+            icon: const Icon(Icons.edit_location_alt_outlined),
+            selectedIcon: const Icon(Icons.edit_location_alt),
+            label: AppLocalizations.of(context).navEditor,
           ),
           NavigationDestination(
-            icon: Icon(Icons.play_circle_outline),
-            selectedIcon: Icon(Icons.play_circle),
-            label: 'Sesión',
+            icon: const Icon(Icons.play_circle_outline),
+            selectedIcon: const Icon(Icons.play_circle),
+            label: AppLocalizations.of(context).navSession,
           ),
           NavigationDestination(
-            icon: Icon(Icons.history),
-            selectedIcon: Icon(Icons.history_toggle_off),
-            label: 'Historial',
+            icon: const Icon(Icons.history),
+            selectedIcon: const Icon(Icons.history_toggle_off),
+            label: AppLocalizations.of(context).navHistory,
           ),
         ],
       ),
@@ -98,7 +99,7 @@ Widget? buildDrawerLeading(BuildContext context, AuthService? authService) {
   final isLoggedIn = user != null;
 
   return IconButton(
-    tooltip: isLoggedIn ? 'Menú' : 'Menú',
+    tooltip: AppLocalizations.of(context).drawerMenu,
     icon: isLoggedIn
         ? CircleAvatar(
             radius: 14,

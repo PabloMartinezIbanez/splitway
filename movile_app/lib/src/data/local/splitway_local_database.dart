@@ -11,7 +11,7 @@ class SplitwayLocalDatabase {
 
   Database get raw => _db;
 
-  static const int _schemaVersion = 1;
+  static const int _schemaVersion = 2;
 
   static Future<SplitwayLocalDatabase> open({String? overridePath}) async {
     final path = overridePath ?? await _defaultPath();
@@ -97,6 +97,11 @@ class SplitwayLocalDatabase {
       );
       await db.execute(
         'CREATE INDEX idx_sessions_route_started ON session_runs(route_id, started_at DESC)',
+      );
+    }
+    if (from < 2 && to >= 2) {
+      await db.execute(
+        'ALTER TABLE route_templates ADD COLUMN location_label TEXT',
       );
     }
   }

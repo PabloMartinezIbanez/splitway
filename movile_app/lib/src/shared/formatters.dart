@@ -15,19 +15,19 @@ class Formatters {
         '${millis.toString().padLeft(3, '0')}';
   }
 
-  static String distanceMeters(double meters) {
-    if (meters < 1000) {
-      return '${meters.toStringAsFixed(0)} m';
-    }
-    return '${(meters / 1000).toStringAsFixed(2)} km';
+  /// Returns just the numeric portion. The caller wraps it with the localized
+  /// unit using `AppLocalizations.unitMeters` / `unitKilometers`.
+  static (double value, bool isKilometers) distanceMeters(double meters) {
+    if (meters < 1000) return (meters, false);
+    return (meters / 1000, true);
   }
 
-  static String speedMps(double mps) {
-    final kmh = mps * 3.6;
-    return '${kmh.toStringAsFixed(1)} km/h';
-  }
+  /// Returns just the numeric portion in km/h. The caller wraps it with
+  /// `AppLocalizations.unitKmh`.
+  static double speedMps(double mps) => mps * 3.6;
 
+  /// Uses `Intl.defaultLocale` set by `LocaleController`.
   static String dateTime(DateTime dt) {
-    return DateFormat('dd MMM yyyy · HH:mm', 'es_ES').format(dt);
+    return DateFormat('dd MMM yyyy · HH:mm').format(dt);
   }
 }
