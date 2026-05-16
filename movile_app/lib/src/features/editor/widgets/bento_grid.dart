@@ -102,7 +102,7 @@ class BentoTileWide extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailingText != null) ...[
+            if (trailingText != null)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -125,8 +125,13 @@ class BentoTileWide extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
-            Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
+            if (onTap != null)
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
           ],
         ),
       ),
