@@ -250,13 +250,23 @@ class _RouteDetail extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Route name + difficulty
+        // Route name + difficulty + sectors toggle
         Row(
           children: [
             Expanded(
               child: Text(route.name, style: theme.textTheme.headlineSmall),
             ),
             _DifficultyChip(difficulty: route.difficulty),
+            if (route.sectors.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onToggleSectors,
+                icon: Icon(
+                  showSectors ? Icons.palette : Icons.palette_outlined,
+                ),
+                tooltip: showSectors ? 'Ocultar sectores' : 'Ver sectores',
+              ),
+            ],
           ],
         ),
         if (route.description != null && route.description!.isNotEmpty) ...[
