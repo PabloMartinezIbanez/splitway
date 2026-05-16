@@ -23,6 +23,7 @@ class SplitwayMap extends StatefulWidget {
     this.draftSectorPoints = const [],
     this.highlightSectorId,
     this.showSectors = false,
+    this.userLocation,
     this.initialCenter,
     this.flyToNotifier,
     this.onTap,
@@ -42,6 +43,8 @@ class SplitwayMap extends StatefulWidget {
   final String? highlightSectorId;
   /// When true, the saved route is drawn in per-sector colors instead of solid blue.
   final bool showSectors;
+  /// Current user position shown as a blue dot on the map.
+  final GeoPoint? userLocation;
   /// Initial camera center (e.g. user GPS location). Falls back to Madrid if null.
   final GeoPoint? initialCenter;
   /// When this notifier fires, the map flies to the given point.
@@ -114,6 +117,7 @@ class _SplitwayMapState extends State<SplitwayMap> {
     final routeChanged = oldWidget.route != widget.route;
     final annotationsChanged = routeChanged ||
         oldWidget.telemetry.length != widget.telemetry.length ||
+        oldWidget.userLocation != widget.userLocation ||
         oldWidget.draftPath.length != widget.draftPath.length ||
         oldWidget.draftWaypoints.length != widget.draftWaypoints.length ||
         oldWidget.draftSectorPoints.length != widget.draftSectorPoints.length ||
@@ -338,6 +342,19 @@ class _SplitwayMapState extends State<SplitwayMap> {
         circleRadius: 8,
         circleStrokeColor: 0xFFFFFFFF,
         circleStrokeWidth: 2,
+      ));
+    }
+
+    // User location dot.
+    final userLoc = widget.userLocation;
+    if (userLoc != null) {
+      await circleMgr.create(mbx.CircleAnnotationOptions(
+        geometry: mbx.Point(
+            coordinates: mbx.Position(userLoc.longitude, userLoc.latitude)),
+        circleColor: 0xFF2196F3,
+        circleRadius: 10,
+        circleStrokeColor: 0xFFFFFFFF,
+        circleStrokeWidth: 3,
       ));
     }
   }

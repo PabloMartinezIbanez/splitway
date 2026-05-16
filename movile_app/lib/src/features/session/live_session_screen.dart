@@ -181,6 +181,9 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
                 route: route,
                 telemetry: tracker.ingested,
                 highlightSectorId: snapshot.lastCrossedSectorId,
+                userLocation: tracker.ingested.isNotEmpty
+                    ? tracker.ingested.last.location
+                    : null,
               ),
             ),
           ),
